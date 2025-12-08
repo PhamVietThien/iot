@@ -173,5 +173,15 @@ setInterval(async ()=>{
 },60000);
 
 // --------- Start Server ---------
-const PORT = process.env.PORT||3000;
-http.createServer(app).listen(PORT,()=>console.log(`🚀 Server running on port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+
+// Nếu bạn để index.html bên cạnh server.js:
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// Render bắt buộc phải dùng http.createServer
+const server = http.createServer(app);
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
