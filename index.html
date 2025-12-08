@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Aquarium Control Panel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6">
+<h1 class="text-3xl font-bold mb-6 text-center">🐟 Aquarium Control Panel</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+  <!-- Control & Status Panel -->
+  <div class="bg-white p-6 rounded-xl shadow-lg h-screen overflow-y-auto">
+    <h2 class="font-semibold text-xl mb-4">Control Panel</h2>
+
+    <!-- Buttons -->
+    <div class="space-y-3">
+      <button id="btnAuto" onclick="toggleDevice('autoMode')" class="w-full py-3 rounded-lg text-white font-semibold"></button>
+      <button id="btnPump" onclick="toggleDevice('pump')" class="w-full py-3 rounded-lg text-white font-semibold"></button>
+      <button id="btnLight" onclick="toggleDevice('light')" class="w-full py-3 rounded-lg text-white font-semibold"></button>
+    </div>
+
+    <!-- Status Info -->
+    <div class="grid grid-cols-2 gap-4 mt-6 text-gray-700 font-medium">
+      <div>Temperature: <span id="temperature">0</span>°C</div>
+      <div>Water Level: <span id="waterLevel">0</span> mm</div>
+      <div>Threshold: <span id="thresholdVal">50</span> mm</div>
+      <div>Pump toggled: <span id="pumpCount">0</span> times</div>
+      <div>Light toggled: <span id="lightCount">0</span> times</div>
+      <div>Schedule: <span id="scheduleInfo" class="text-indigo-600 font-semibold">--:-- / --:--</span></div>
+    </div>
+
+    <!-- Threshold Control -->
+    <div class="mt-4">
+      <input id="thresholdInput" type="number" class="border p-2 rounded w-full" placeholder="Set threshold mm">
+      <button onclick="setThreshold()" class="w-full bg-indigo-500 py-2 rounded text-white mt-2">Set Threshold</button>
+    </div>
+
+    <!-- Light Schedule -->
+    <div class="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+      <h3 class="font-semibold text-gray-700 mb-2">Light Schedule (HH:MM)</h3>
+      <div class="flex gap-2 items-center">
+        <label class="w-16 text-gray-600">On:</label>
+        <input type="time" id="lightOn" class="border p-2 rounded flex-1">
+      </div>
+      <div class="flex gap-2 items-center mt-2">
+        <label class="w-16 text-gray-600">Off:</label>
+        <input type="time" id="lightOff" class="border p-2 rounded flex-1">
+      </div>
+      <button onclick="setLightSchedule()" class="w-full bg-yellow-500 py-2 rounded text-white mt-3">Set Schedule</button>
+    </div>
+  </div>
+
+  <!-- Log Panel -->
+  <div class="bg-white p-6 rounded-xl shadow-lg h-screen overflow-y-auto">
+    <h2 class="font-semibold text-xl mb-3">Logs</h2>
+    <div id="logContainer" class="text-sm font-mono"></div>
+  </div>
+
+</div>
+
+<script>
+async function fetchState() {
+  try {
+    const res = await fetch('/state');
+    const state = await res.json();
+
+    // Buttons
+    const autoBtn = document.getElementById('btnAuto');
+    autoBtn.textContent = state.autoMode ? 'AUTO MODE' : 'MANUAL MODE';
+    autoBtn.className = state.autoMode
+      ? 'w-full py-3 rounded-lg text-white font-semibold bg-blue-500'
+      : 'w-full py-3 rounded-lg text-white font-semibold bg-gray-500';
+
+    const pumpBtn = document.getElementById('btnPump');
+    pumpBtn.textContent = state.pump ? 'PUMP ON' : 'PUMP OFF';
+    pumpBtn.className = state.pump
+      ? 'w-full py-3 rounded-lg text-white font-semibold bg-green-500'
+      : 'w-full py-3 rounded-lg text-white font-semibold bg-gray-400';
+
+    const lightBtn = document.getElementById('btnLight');
+    lightBtn.textContent = state.light ? 'LIGHT ON' : 'LIGHT OFF';
+    lightBtn.className = state.light
+      ? 'w-full py-3 rounded-lg text-white font-semibold bg-yellow-500'
+      : 'w-full py-3 rounded-lg text-white font-semibold bg-gray-400';
+
+    // Info values
+    document.getElementById('temperature').textContent = state.temperature ?? 0;
+    document.getElementById('waterLevel').textContent = state.waterLevel ?? 0;
+    document.getElementById('thresholdVal').textContent = state.threshold ?? 50;
+    document.getElementById('pumpCount').textContent = state.pumpCount ?? 0;
+    document.getElementById('lightCount').textContent = state.lightCount ?? 0;
+
+    // Schedule display
+    if(state.lightSchedule){
+      document.getElementById('lightOn').value = state.lightSchedule.on;
+      document.getElementById('lightOff').value = state.lightSchedule.off;
+      document.getElementById('scheduleInfo').textContent =
+        `${state.lightSchedule.on} / ${state.lightSchedule.off}`;
+    } else {
+      document.getElementById('scheduleInfo').textContent = '--:-- / --:--';
+    }
+
+  } catch(err){ console.error(err); }
+}
+
+async function fetchLog() {
+  try {
+    const res = await fetch('/log');
+    const logData = await res.json();
+    const container = document.getElementById('logContainer');
+    container.innerHTML = '';
+    Object.values(logData).reverse().forEach(entry => { // newest first
+      const div = document.createElement('div');
+      const time = new Date(entry.time).toLocaleTimeString();
+      let color = 'black';
+      if(entry.where==='esp') color='green';
+      if(entry.where==='ui') color='blue';
+      if(entry.where==='server') color='orange';
+      div.textContent = `[${time}] [${entry.where}] ${entry.key}: ${entry.value}`;
+      div.style.color = color;
+      div.style.whiteSpace = 'pre-wrap';
+      container.appendChild(div);
+    });
+    container.scrollTop = 0;
+  } catch(err){ console.error(err); }
+}
+
+async function toggleDevice(key){
+  try {
+    const res = await fetch('/state');
+    const state = await res.json();
+    const current = state[key] || 0;
+    await fetch('/update',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({[key]: current ? 0 : 1})
+    });
+    fetchState();
+    fetchLog();
+  } catch(err){ console.error(err); }
+}
+
+async function setThreshold(){
+  const val = parseInt(document.getElementById('thresholdInput').value);
+  if(isNaN(val)) return alert('Enter valid number');
+  await fetch('/update',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({threshold: val})
+  });
+  fetchState();
+}
+
+async function setLightSchedule(){
+  const on = document.getElementById('lightOn').value;
+  const off = document.getElementById('lightOff').value;
+  if(!on || !off) return alert('Enter both times');
+  await fetch('/update',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({lightSchedule:{on, off}})
+  });
+  fetchState();
+}
+
+// Auto refresh
+setInterval(fetchState, 2000);
+setInterval(fetchLog, 3000);
+fetchState();
+fetchLog();
+</script>
+</body>
+</html>
