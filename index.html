@@ -105,25 +105,33 @@ async function fetchState() {
   } catch(err){ console.error(err); }
 }
 
-async function fetchLog() {
-  try {
+// Thay thế hàm fetchLog cũ bằng hàm này:
+async function fetchLog(){
+  try{
     const res = await fetch('/log');
-    const logData = await res.json();
+    const logs = await res.json(); // MongoDB trả về Array
+    
     const container = document.getElementById('logContainer');
     container.innerHTML = '';
-    Object.values(logData).reverse().forEach(entry => { // newest first
+
+    // Dùng forEach để duyệt mảng
+    logs.forEach(entry => {
       const div = document.createElement('div');
-      const time = new Date(entry.time).toLocaleTimeString();
-      let color = 'black';
-      if(entry.where==='esp') color='green';
-      if(entry.where==='ui') color='blue';
-      if(entry.where==='server') color='orange';
-      div.textContent = `[${time}] [${entry.where}] ${entry.key}: ${entry.value}`;
+      div.className = 'text-xs p-2 border-b border-gray-200';
+      
+      // Màu sắc
+      let color = '#374151'; 
+      if(entry.type === 'action') color = '#2563EB'; // Xanh
+      if(entry.type === 'error') color = '#DC2626'; // Đỏ
+
+      // Format thời gian
+      const timeStr = new Date(entry.timestamp).toLocaleString();
+      
+      div.innerHTML = `[${timeStr}] ${entry.message}`;
       div.style.color = color;
-      div.style.whiteSpace = 'pre-wrap';
+      
       container.appendChild(div);
     });
-    container.scrollTop = 0;
   } catch(err){ console.error(err); }
 }
 
