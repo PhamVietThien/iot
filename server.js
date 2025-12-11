@@ -5,7 +5,8 @@ const http = require("http");
 const mqtt = require("mqtt");
 const path = require("path");
 
-const serviceAccount = require("./firebase-key.json");
+const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://pump-88184-default-rtdb.firebaseio.com/"
