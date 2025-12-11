@@ -5,7 +5,7 @@ const http = require("http");
 const mqtt = require("mqtt");
 const path = require("path");
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+const serviceAccount = require("./firebase-key.json");
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://pump-88184-default-rtdb.firebaseio.com/"
@@ -17,9 +17,9 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const mqttClient = mqtt.connect("mqtts://53b5dabe36884227a54ddeb2601c76fb.s1.eu.hivemq.cloud:8883", {
-  username: "nagumo",
-  password: "Ph123456789",
+const mqttClient = mqtt.connect("mqtts://6df16538873d4a909d0cfb6afbad9517.s1.eu.hivemq.cloud:8883", {
+  username: "iot_nhom8",
+  password: "Iot123456789",
   rejectUnauthorized: false,
   reconnectPeriod: 2000
 });
