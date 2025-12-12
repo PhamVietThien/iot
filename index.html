@@ -6,47 +6,63 @@
     <title>Aquarium Control Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Hiệu ứng nhấp nháy cho trạng thái reset */
-        .blink { animation: blinker 1s linear infinite; }
+        .blink { animation: blinker 1s linear infinite; } 
         @keyframes blinker { 50% { opacity: 0; } }
+        /* Ẩn thanh cuộn cho log nhưng vẫn cuộn được */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-8 min-h-screen">
 
-    <div class="max-w-6xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold text-blue-600 tracking-tight">🐟 Bể Cá Thông Minh</h1>
-            <p class="text-gray-500 mt-2">Hệ thống giám sát & điều khiển IoT</p>
+    <div id="loginModal" class="fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center transform transition-all scale-100">
+            <h2 class="text-3xl font-bold text-blue-600 mb-2">🔐 Đăng Nhập</h2>
+            <p class="text-gray-500 mb-6 text-sm">Hệ thống điều khiển bể cá IoT</p>
+            <div class="space-y-4">
+                <input type="text" id="username" placeholder="Tên đăng nhập" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="password" id="password" placeholder="Mật khẩu" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <button onclick="login()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-lg transform active:scale-95">
+                    Đăng Nhập
+                </button>
+                <p id="loginError" class="text-red-500 text-sm hidden font-bold animate-pulse"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto filter blur-sm transition duration-500" id="mainContent">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-4xl font-extrabold text-blue-600 tracking-tight">🐟 Bể Cá Thông Minh</h1>
+                <p class="text-gray-500 mt-1 text-sm">Xin chào, <span id="userDisplay" class="font-bold text-gray-800">...</span> (<span id="roleDisplay" class="text-blue-600">...</span>)</p>
+            </div>
+            <button onclick="logout()" class="text-sm bg-white border border-gray-200 hover:bg-red-50 text-gray-600 hover:text-red-600 px-5 py-2.5 rounded-lg font-bold transition shadow-sm flex items-center gap-2">
+                Đăng xuất 🚪
+            </button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
             <div class="space-y-6">
                 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                    <h2 class="font-bold text-gray-800 text-lg mb-4 flex items-center">
-                        🎛️ Điều khiển
-                    </h2>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
+                    <div id="blockClickOverlay" class="hidden absolute inset-0 bg-gray-50 bg-opacity-70 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                        <span class="bg-gray-800 text-white text-xs px-4 py-2 rounded-full font-bold shadow-lg">👁️ Chế độ chỉ xem (Viewer)</span>
+                    </div>
+
+                    <h2 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">🎛️ Điều khiển</h2>
                     <div class="space-y-3">
-                        <button id="btnAuto" onclick="toggleDevice('autoMode')" class="w-full py-4 rounded-xl font-bold text-white transition-all transform active:scale-95 shadow-md bg-gray-400">
-                            Đang tải...
-                        </button>
+                        <button id="btnAuto" onclick="toggleDevice('autoMode')" class="w-full py-4 rounded-xl font-bold text-white shadow-md bg-gray-400 transition-all">Đang tải...</button>
                         <div class="grid grid-cols-2 gap-3">
-                            <button id="btnPump" onclick="toggleDevice('pump')" class="py-4 rounded-xl font-bold text-white transition-all shadow-md bg-gray-400">
-                                Máy Bơm
-                            </button>
-                            <button id="btnLight" onclick="toggleDevice('light')" class="py-4 rounded-xl font-bold text-white transition-all shadow-md bg-gray-400">
-                                Đèn LED
-                            </button>
+                            <button id="btnPump" onclick="toggleDevice('pump')" class="py-4 rounded-xl font-bold text-white shadow-md bg-gray-400 transition-all">Máy Bơm</button>
+                            <button id="btnLight" onclick="toggleDevice('light')" class="py-4 rounded-xl font-bold text-white shadow-md bg-gray-400 transition-all">Đèn LED</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                    <h2 class="font-bold text-gray-800 text-lg mb-4 flex items-center">
-                        📊 Trạng Thái
-                    </h2>
-                    
+                    <h2 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">📊 Trạng Thái</h2>
                     <div class="grid grid-cols-2 gap-4 mb-6">
                         <div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
                             <p class="text-sm text-gray-500 mb-1">Nhiệt độ</p>
@@ -57,61 +73,77 @@
                             <p class="text-3xl font-bold text-cyan-600"><span id="waterLevel">--</span> mm</p>
                         </div>
                     </div>
-
+                    
                     <div class="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-                        <h3 class="text-xs font-bold text-indigo-800 uppercase tracking-wide mb-3 border-b border-indigo-200 pb-2">
-                            📡 Kết nối mạng
-                        </h3>
-                        <div class="grid grid-cols-2 gap-y-2 text-sm">
-                            <div class="text-gray-600">WiFi SSID:</div>
-                            <div id="wifiName" class="font-bold text-gray-800 text-right">Checking...</div>
-                            
-                            <div class="text-gray-600">Tín hiệu (RSSI):</div>
+                        <h3 class="text-xs font-bold text-indigo-800 uppercase tracking-wide mb-3 border-b border-indigo-200 pb-2">📡 Kết nối mạng</h3>
+                        <div class="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
+                            <div>WiFi SSID:</div>
+                            <div id="wifiName" class="font-bold text-right text-green-600">Checking...</div>
+                            <div>Tín hiệu:</div>
                             <div id="wifiSignal" class="font-bold text-right text-gray-500">-- dBm</div>
-                            
-                            <div class="text-gray-600">IP Address:</div>
+                            <div>IP:</div>
                             <div id="wifiIP" class="font-mono text-right text-gray-600">...</div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                    <h2 class="font-bold text-gray-800 text-lg mb-4">⚙️ Cài đặt</h2>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 relative">
+                    <h2 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">⚙️ Cài đặt</h2>
                     
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Ngưỡng bơm tự động (mm)</label>
-                        <div class="flex gap-2">
-                            <input type="number" id="thresholdInput" class="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="100">
-                            <button onclick="setThreshold()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">Lưu</button>
+                    <div id="settingsControls" class="space-y-4">
+                        <div>
+                            <label class="text-sm text-gray-600 block mb-1">Ngưỡng bơm (mm)</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="thresholdInput" class="flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="100">
+                                <button onclick="setThreshold()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-bold">Lưu</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-600 block mb-1">Lịch đèn (Bật ➜ Tắt)</label>
+                            <div class="flex gap-2">
+                                <input type="time" id="lightOn" class="border rounded-lg px-2 py-2 w-full text-sm">
+                                <input type="time" id="lightOff" class="border rounded-lg px-2 py-2 w-full text-sm">
+                                <button onclick="setLightSchedule()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-bold">Đặt</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Lịch bật đèn</label>
-                        <div class="flex items-center gap-2">
-                            <input type="time" id="lightOn" class="border rounded-lg px-2 py-2 w-full">
-                            <span class="text-gray-400">➜</span>
-                            <input type="time" id="lightOff" class="border rounded-lg px-2 py-2 w-full">
-                            <button onclick="setLightSchedule()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium">Đặt</button>
+                    <div id="adminZone" class="hidden border-t-2 border-dashed border-gray-200 pt-6 mt-6 space-y-6">
+                        
+                        <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                            <h3 class="text-red-800 font-bold text-sm mb-2">⚠️ Vùng nguy hiểm</h3>
+                            <button onclick="requestWifiReset()" class="w-full py-2 bg-red-500 text-white rounded-lg font-bold text-sm hover:bg-red-600 transition shadow-sm flex items-center justify-center gap-2">
+                                🔄 Reset WiFi & Cấu hình lại
+                            </button>
                         </div>
-                    </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <h3 class="font-bold text-sm mb-3 text-gray-700 flex items-center gap-2">👥 Thêm tài khoản mới</h3>
+                            <div class="space-y-2">
+                                <input id="newUser" type="text" placeholder="Tên đăng nhập mới" class="w-full p-2 border rounded text-sm outline-none focus:border-green-500">
+                                <input id="newPass" type="text" placeholder="Mật khẩu" class="w-full p-2 border rounded text-sm outline-none focus:border-green-500">
+                                <div class="flex gap-2">
+                                    <select id="newRole" class="flex-1 p-2 border rounded text-sm bg-white outline-none focus:border-green-500">
+                                        <option value="viewer">Viewer (Chỉ xem)</option>
+                                        <option value="admin">Admin (Quản trị)</option>
+                                    </select>
+                                    <button onclick="createUser()" class="bg-green-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-green-700 shadow-sm">Thêm</button>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="pt-4 mt-4 border-t border-gray-100">
-                        <button onclick="requestWifiReset()" class="w-full py-3 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-bold text-sm transition flex justify-center items-center gap-2">
-                            ⚠️ Reset WiFi & Cấu hình lại
-                        </button>
                     </div>
-                </div>
+                    </div>
 
             </div>
 
-            <div class="bg-gray-900 text-gray-300 p-6 rounded-2xl shadow-lg h-[600px] flex flex-col font-mono text-sm">
-                <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                    <h2 class="font-bold text-white">📜 System Logs</h2>
-                    <span class="text-xs text-green-400 animate-pulse">● Live</span>
+            <div class="bg-gray-900 text-gray-300 p-6 rounded-2xl shadow-lg h-[600px] flex flex-col font-mono text-sm border border-gray-800">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
+                    <h2 class="font-bold text-white flex items-center gap-2">📜 Nhật Ký Hệ Thống</h2>
+                    <span class="text-xs text-green-400 flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Live</span>
                 </div>
                 <div id="logContainer" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    <p class="text-gray-500 italic">Đang tải nhật ký...</p>
+                    <p class="text-gray-600 italic text-center mt-10">Đang chờ dữ liệu...</p>
                 </div>
             </div>
 
@@ -119,181 +151,219 @@
     </div>
 
     <script>
-        // --- 1. HÀM CẬP NHẬT GIAO DIỆN CHÍNH ---
+        // --- AUTH & VARIABLES ---
+        let TOKEN = localStorage.getItem('token');
+        let ROLE = localStorage.getItem('role');
+        let USERNAME = localStorage.getItem('username');
+
+        // Hàm kiểm tra đăng nhập & Phân quyền
+        function checkAuth() {
+            if (!TOKEN) {
+                // Chưa đăng nhập -> Hiện Modal, Làm mờ nền
+                document.getElementById('loginModal').classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+                document.getElementById('mainContent').classList.add('filter', 'blur-md', 'pointer-events-none');
+            } else {
+                // Đã đăng nhập -> Ẩn Modal, Hiện nền
+                document.getElementById('loginModal').classList.add('hidden', 'opacity-0', 'pointer-events-none');
+                document.getElementById('mainContent').classList.remove('filter', 'blur-md', 'pointer-events-none');
+                
+                // Hiển thị tên
+                document.getElementById('userDisplay').innerText = USERNAME;
+                document.getElementById('roleDisplay').innerText = ROLE === 'admin' ? 'Quản Trị Viên' : 'Khách Xem';
+                
+                // --- LOGIC PHÂN QUYỀN ---
+                if (ROLE !== 'admin') {
+                    // Viewer: Ẩn AdminZone, Chặn click, Mờ Settings
+                    document.getElementById('adminZone').classList.add('hidden');
+                    document.getElementById('blockClickOverlay').classList.remove('hidden');
+                    document.getElementById('settingsControls').style.pointerEvents = 'none';
+                    document.getElementById('settingsControls').style.opacity = '0.5';
+                } else {
+                    // Admin: Full quyền
+                    document.getElementById('adminZone').classList.remove('hidden');
+                    document.getElementById('blockClickOverlay').classList.add('hidden');
+                    document.getElementById('settingsControls').style.pointerEvents = 'auto';
+                    document.getElementById('settingsControls').style.opacity = '1';
+                }
+                
+                // Bắt đầu lấy dữ liệu
+                fetchState();
+                fetchLog();
+            }
+        }
+
+        // Hàm Login
+        async function login() {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            const errEl = document.getElementById('loginError');
+
+            if(!u || !p) {
+                errEl.innerText = "Vui lòng nhập đủ thông tin!";
+                errEl.classList.remove('hidden'); return;
+            }
+
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    // Lưu Session
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('role', data.role);
+                    localStorage.setItem('username', data.username);
+                    TOKEN = data.token; ROLE = data.role; USERNAME = data.username;
+                    
+                    // Reset lỗi & vào app
+                    errEl.classList.add('hidden');
+                    checkAuth();
+                } else {
+                    errEl.innerText = "❌ " + data.error;
+                    errEl.classList.remove('hidden');
+                }
+            } catch(e) { 
+                errEl.innerText = "⚠️ Lỗi kết nối Server!";
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+
+        // --- API HELPER (Tự động gắn Token) ---
+        async function apiCall(endpoint, body) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+                    body: JSON.stringify(body)
+                });
+                
+                if(res.status === 403) {
+                    alert("⛔ BẠN KHÔNG CÓ QUYỀN THỰC HIỆN!");
+                    return null;
+                }
+
+                const data = await res.json();
+                if(!data.success) alert("❌ Lỗi: " + data.error);
+                return data;
+            } catch(e) { console.error(e); }
+        }
+
+        // --- CONTROL FUNCTIONS ---
+        async function toggleDevice(key) {
+            if(ROLE !== 'admin') return; // Chặn client side trước
+            
+            // Lấy trạng thái cũ để đảo ngược
+            const res = await fetch('/state');
+            const state = await res.json();
+            const current = state[key] || 0;
+            
+            await apiCall('/update', { [key]: current ? 0 : 1 });
+            fetchState(); // Refresh ngay
+        }
+
+        async function setThreshold() { 
+            apiCall('/update', { threshold: parseInt(document.getElementById('thresholdInput').value) }); 
+            alert("Đã lưu ngưỡng!");
+        }
+        
+        async function setLightSchedule() { 
+            apiCall('/update', { lightSchedule: { on: document.getElementById('lightOn').value, off: document.getElementById('lightOff').value } });
+            alert("Đã lưu lịch!");
+        }
+
+        async function requestWifiReset() { 
+            if(confirm("⚠️ CẢNH BÁO: Thiết bị sẽ mất mạng và cần cấu hình lại!\nBạn chắc chắn chứ?")) {
+                const res = await apiCall('/reset-wifi', {});
+                if(res && res.success) alert("✅ Đã gửi lệnh Reset! Đèn trên thiết bị sẽ nháy liên tục.");
+            }
+        }
+        
+        async function createUser() {
+            const u = document.getElementById('newUser').value;
+            const p = document.getElementById('newPass').value;
+            const r = document.getElementById('newRole').value;
+            if(!u || !p) return alert("Nhập thiếu thông tin!");
+            
+            const data = await apiCall('/register', { newUsername: u, newPassword: p, newRole: r });
+            if(data && data.success) { 
+                alert("✅ " + data.message); 
+                document.getElementById('newUser').value=''; 
+                document.getElementById('newPass').value=''; 
+            }
+        }
+
+        // --- DISPLAY FUNCTIONS ---
         async function fetchState() {
+            if(!TOKEN) return; // Không có token không gọi
             try {
                 const res = await fetch('/state');
                 const data = await res.json();
+                
+                updateButton('btnAuto', data.autoMode, '🤖 Tự Động: BẬT', '🤖 Tự Động: TẮT');
+                updateButton('btnPump', data.pump, '🌊 Máy Bơm: ĐANG CHẠY', '🌊 Máy Bơm: ĐANG TẮT');
+                updateButton('btnLight', data.light, '💡 Đèn LED: ĐANG SÁNG', '💡 Đèn LED: ĐANG TẮT');
 
-                // Cập nhật Nút
-                updateButton('btnAuto', data.autoMode, '🤖 Chế độ Tự Động', '🤖 Chế độ Thủ Công');
-                updateButton('btnPump', data.pump, '🌊 Máy Bơm: BẬT', '🌊 Máy Bơm: TẮT');
-                updateButton('btnLight', data.light, '💡 Đèn: BẬT', '💡 Đèn: TẮT');
-
-                // Cập nhật Cảm biến
                 document.getElementById('temperature').innerText = data.temperature;
                 document.getElementById('waterLevel').innerText = data.waterLevel;
-
-                // Cập nhật Setting inputs (chỉ gán khi chưa focus để ko làm phiền người nhập)
-                if(document.activeElement.id !== 'thresholdInput') 
-                    document.getElementById('thresholdInput').placeholder = data.threshold;
                 
-                if(data.lightSchedule) {
-                    if(document.activeElement.id !== 'lightOn') document.getElementById('lightOn').value = data.lightSchedule.on;
-                    if(document.activeElement.id !== 'lightOff') document.getElementById('lightOff').value = data.lightSchedule.off;
+                // WiFi Info
+                const wifiEl = document.getElementById('wifiName');
+                wifiEl.innerText = data.wifiSSID;
+                if(data.wifiSSID === 'Disconnect' || data.wifiSSID === 'Reseting...') {
+                    wifiEl.className = 'font-bold text-right text-red-500 blink';
+                } else {
+                    wifiEl.className = 'font-bold text-right text-green-600';
                 }
+                document.getElementById('wifiIP').innerText = data.ip;
+                document.getElementById('wifiSignal').innerText = data.rssi + " dBm";
+                
+                // Inputs placeholder
+                if(document.activeElement.id !== 'thresholdInput') document.getElementById('thresholdInput').placeholder = data.threshold;
 
-                // --- CẬP NHẬT WIFI INFO (MỚI) ---
-                updateWifiInfo(data);
-
-            } catch (err) {
-                console.error("Lỗi fetchState:", err);
-            }
+            } catch(e) {}
         }
 
-        // Hàm phụ cập nhật nút bấm
-        function updateButton(id, state, textOn, textOff) {
+        function updateButton(id, state, txtOn, txtOff) {
             const btn = document.getElementById(id);
-            if (state === 1) {
-                btn.textContent = textOn;
-                btn.className = btn.className.replace(/bg-gray-400|bg-red-500/g, 'bg-green-500 hover:bg-green-600');
+            if(state) {
+                btn.innerText = txtOn;
+                btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-green-500 hover:bg-green-600 transition-all";
             } else {
-                btn.textContent = textOff;
-                btn.className = btn.className.replace(/bg-green-500/g, 'bg-gray-400 hover:bg-gray-500');
-            }
-            
-            // Xử lý riêng cho nút Auto để nó nổi bật hơn
-            if(id === 'btnAuto') {
-                if(state === 1) btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-blue-600 hover:bg-blue-700";
-                else btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-gray-500 hover:bg-gray-600";
+                btn.innerText = txtOff;
+                btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-gray-400 hover:bg-gray-500 transition-all";
             }
         }
 
-        // Hàm phụ hiển thị WiFi
-        function updateWifiInfo(data) {
-            const nameEl = document.getElementById('wifiName');
-            const rssiEl = document.getElementById('wifiSignal');
-            const ipEl = document.getElementById('wifiIP');
-
-            if (data.wifiSSID) {
-                nameEl.textContent = data.wifiSSID;
-                if (data.wifiSSID === "Reseting..." || data.wifiSSID === "Disconnect") {
-                    nameEl.className = "font-bold text-right text-red-500 blink"; // Nhấp nháy đỏ
-                } else {
-                    nameEl.className = "font-bold text-right text-green-600";
-                }
-            }
-
-            if (data.rssi) {
-                const rssi = parseInt(data.rssi);
-                rssiEl.textContent = rssi + " dBm";
-                // Màu sóng
-                if (rssi > -60) rssiEl.style.color = "#16a34a"; // Xanh lá
-                else if (rssi > -80) rssiEl.style.color = "#ea580c"; // Cam
-                else rssiEl.style.color = "#dc2626"; // Đỏ
-            }
-
-            if (data.ip) ipEl.textContent = data.ip;
-        }
-
-        // --- 2. HÀM ĐIỀU KHIỂN ---
-        async function toggleDevice(key) {
-            try {
-                // Lấy trạng thái hiện tại trước
-                const res = await fetch('/state');
-                const state = await res.json();
-                const currentVal = state[key] || 0;
-                
-                // Gửi lệnh đảo ngược
-                await fetch('/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ [key]: currentVal ? 0 : 1 })
-                });
-                
-                fetchState(); // Cập nhật lại ngay
-            } catch (err) { alert('Lỗi kết nối server'); }
-        }
-
-        async function setThreshold() {
-            const val = document.getElementById('thresholdInput').value;
-            if(!val) return;
-            await fetch('/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ threshold: parseInt(val) })
-            });
-            alert("Đã lưu ngưỡng bơm!");
-        }
-
-        async function setLightSchedule() {
-            const on = document.getElementById('lightOn').value;
-            const off = document.getElementById('lightOff').value;
-            if(!on || !off) return alert("Vui lòng chọn đủ giờ bật và tắt");
-            
-            await fetch('/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lightSchedule: { on, off } })
-            });
-            alert("Đã lưu lịch đèn!");
-        }
-
-        // --- 3. HÀM RESET WIFI ---
-        async function requestWifiReset() {
-            if (!confirm("⚠️ CẢNH BÁO QUAN TRỌNG:\n\nThiết bị sẽ mất kết nối mạng và khởi động lại.\nBạn cần kết nối vào WiFi 'FishTank_Config' để cài đặt lại.\n\nBạn có chắc chắn không?")) {
-                return;
-            }
-
-            // Giao diện chuyển sang trạng thái chờ
-            document.getElementById('wifiName').textContent = "Đang gửi lệnh...";
-            document.getElementById('wifiName').className = "font-bold text-right text-orange-500 blink";
-
-            try {
-                const res = await fetch('/reset-wifi', { method: 'POST' });
-                const data = await res.json();
-                
-                if(data.success) {
-                    alert("✅ Lệnh Reset đã gửi thành công!\nĐèn trên thiết bị sẽ nháy liên tục.");
-                } else {
-                    alert("❌ Lỗi: " + data.error);
-                }
-            } catch (err) {
-                console.error(err);
-                alert("❌ Không thể kết nối đến Server");
-            }
-        }
-
-        // --- 4. HÀM LOGS ---
         async function fetchLog() {
-            try {
-                const res = await fetch('/log');
-                const logs = await res.json();
-                const container = document.getElementById('logContainer');
-                container.innerHTML = '';
-
-                logs.forEach(log => {
-                    const div = document.createElement('div');
-                    const time = new Date(log.timestamp).toLocaleTimeString('vi-VN');
-                    
-                    // Màu sắc log
-                    let colorClass = "text-gray-300";
-                    if(log.source === 'auto') colorClass = "text-yellow-300";
-                    if(log.source === 'button') colorClass = "text-purple-300";
-                    if(log.source === 'web') colorClass = "text-blue-300";
-
-                    div.className = `border-l-2 pl-2 border-gray-700 hover:bg-gray-800 p-1 rounded ${colorClass}`;
-                    div.innerHTML = `<span class="text-gray-500 text-xs">[${time}]</span> ${log.message}`;
-                    container.appendChild(div);
-                });
-            } catch (err) { console.error(err); }
+            if(!TOKEN) return;
+            const res = await fetch('/log');
+            const logs = await res.json();
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '';
+            
+            logs.forEach(l => {
+                const div = document.createElement('div');
+                div.className = "border-l-2 pl-2 border-gray-700 hover:bg-gray-800 p-1 rounded transition";
+                const time = new Date(l.timestamp).toLocaleTimeString('vi-VN');
+                
+                let color = "text-gray-300";
+                if(l.source === 'auto') color = "text-yellow-400";
+                if(l.source === 'web') color = "text-blue-400";
+                if(l.source === 'button') color = "text-purple-400";
+                
+                div.innerHTML = `<span class="text-gray-500 text-xs font-mono">[${time}]</span> <span class="${color}">${l.message}</span>`;
+                container.appendChild(div);
+            });
         }
 
-        // --- CHẠY TỰ ĐỘNG ---
-        setInterval(fetchState, 1000); // Cập nhật trạng thái mỗi giây
-        setInterval(fetchLog, 3000);   // Cập nhật log mỗi 3 giây
-        fetchState();
-        fetchLog();
+        // --- INIT ---
+        checkAuth(); // Chạy kiểm tra ngay khi mở trang
+        setInterval(() => { if(TOKEN) { fetchState(); } }, 1000);
+        setInterval(() => { if(TOKEN) { fetchLog(); } }, 3000);
     </script>
 </body>
 </html>
