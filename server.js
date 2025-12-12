@@ -63,19 +63,27 @@ const User = mongoose.model("User", UserSchema);
 const Log = mongoose.model("Log", LogSchema);
 
 // ==================== 2. KHỞI TẠO DỮ LIỆU ====================
+// ==================== 2. KHỞI TẠO DỮ LIỆU ====================
 async function initData() {
-  // 1. Tạo state mặc định cho bể cá
+  // 1. Tạo state mặc định
   if (!(await State.findOne({ deviceId: "aquarium_main" }))) {
     await State.create({ deviceId: "aquarium_main" });
     console.log("🛠️ Created default device state");
   }
 
-  // 2. Tạo Admin mặc định nếu chưa có ai (MỚI)
-  const userCount = await User.countDocuments();
-  if (userCount === 0) {
-    await User.create({ username: "admin", password: "123", role: "admin" });
-    console.log("⚠️ Đã tạo tài khoản mặc định: admin / 123");
-  }
+  // 2. CẬP NHẬT HOẶC TẠO ADMIN (Sửa đoạn này)
+  // Dùng findOneAndUpdate để: Nếu chưa có thì tạo, nếu có rồi thì sửa lại quyền thành 'admin'
+  await User.findOneAndUpdate(
+      { username: "admin" }, 
+      { 
+          $set: { 
+              password: "123", 
+              role: "admin" // <--- Dòng quan trọng: Ép quyền thành admin
+          } 
+      },
+      { upsert: true, new: true }
+  );
+  console.log("👑 Đã cập nhật/khôi phục tài khoản: admin / 123 (Quyền: Admin)");
 }
 initData();
 
