@@ -157,40 +157,47 @@
         let USERNAME = localStorage.getItem('username');
 
         // Hàm kiểm tra đăng nhập & Phân quyền
-        function checkAuth() {
-            if (!TOKEN) {
-                // Chưa đăng nhập -> Hiện Modal, Làm mờ nền
-                document.getElementById('loginModal').classList.remove('hidden', 'opacity-0', 'pointer-events-none');
-                document.getElementById('mainContent').classList.add('filter', 'blur-md', 'pointer-events-none');
-            } else {
-                // Đã đăng nhập -> Ẩn Modal, Hiện nền
-                document.getElementById('loginModal').classList.add('hidden', 'opacity-0', 'pointer-events-none');
-                document.getElementById('mainContent').classList.remove('filter', 'blur-md', 'pointer-events-none');
-                
-                // Hiển thị tên
-                document.getElementById('userDisplay').innerText = USERNAME;
-                document.getElementById('roleDisplay').innerText = ROLE === 'admin' ? 'Quản Trị Viên' : 'Khách Xem';
-                
-                // --- LOGIC PHÂN QUYỀN ---
-                if (ROLE !== 'admin') {
-                    // Viewer: Ẩn AdminZone, Chặn click, Mờ Settings
-                    document.getElementById('adminZone').classList.add('hidden');
-                    document.getElementById('blockClickOverlay').classList.remove('hidden');
-                    document.getElementById('settingsControls').style.pointerEvents = 'none';
-                    document.getElementById('settingsControls').style.opacity = '0.5';
-                } else {
-                    // Admin: Full quyền
-                    document.getElementById('adminZone').classList.remove('hidden');
-                    document.getElementById('blockClickOverlay').classList.add('hidden');
-                    document.getElementById('settingsControls').style.pointerEvents = 'auto';
-                    document.getElementById('settingsControls').style.opacity = '1';
-                }
-                
-                // Bắt đầu lấy dữ liệu
-                fetchState();
-                fetchLog();
-            }
+function checkAuth() {
+    if (!TOKEN) {
+        // TRƯỜNG HỢP 1: CHƯA ĐĂNG NHẬP
+        // Hiện Modal, Làm mờ nền
+        document.getElementById('loginModal').classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+        
+        // Thêm hiệu ứng mờ (blur-sm) vào nội dung chính
+        document.getElementById('mainContent').classList.add('filter', 'blur-sm', 'pointer-events-none');
+    } else {
+        // TRƯỜNG HỢP 2: ĐÃ ĐĂNG NHẬP
+        // Ẩn Modal Login đi
+        document.getElementById('loginModal').classList.add('hidden', 'opacity-0', 'pointer-events-none');
+        
+        // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
+        // Xóa sạch các class gây mờ (Xóa cả blur-sm và blur-md để đảm bảo hết mờ 100%)
+        document.getElementById('mainContent').classList.remove('filter', 'blur-sm', 'blur-md', 'pointer-events-none');
+        
+        // Hiển thị tên người dùng
+        document.getElementById('userDisplay').innerText = USERNAME;
+        document.getElementById('roleDisplay').innerText = ROLE === 'admin' ? 'Quản Trị Viên' : 'Khách Xem';
+        
+        // --- LOGIC PHÂN QUYỀN GIAO DIỆN ---
+        if (ROLE !== 'admin') {
+            // Nếu là Viewer (Khách):
+            document.getElementById('adminZone').classList.add('hidden');              // Ẩn vùng Admin
+            document.getElementById('blockClickOverlay').classList.remove('hidden');   // Hiện lớp phủ chặn click
+            document.getElementById('settingsControls').style.pointerEvents = 'none';  // Khóa nút cài đặt
+            document.getElementById('settingsControls').style.opacity = '0.5';         // Làm mờ nút cài đặt
+        } else {
+            // Nếu là Admin:
+            document.getElementById('adminZone').classList.remove('hidden');           // Hiện vùng Admin
+            document.getElementById('blockClickOverlay').classList.add('hidden');      // Bỏ chặn click
+            document.getElementById('settingsControls').style.pointerEvents = 'auto';  // Mở khóa nút
+            document.getElementById('settingsControls').style.opacity = '1';           // Làm rõ nút
         }
+        
+        // Bắt đầu tải dữ liệu
+        fetchState();
+        fetchLog();
+    }
+}
 
         // Hàm Login
         async function login() {
