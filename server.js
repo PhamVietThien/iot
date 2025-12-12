@@ -1,168 +1,281 @@
+// server.js - PHIÊN BẢN CUỐI CÙNG, HOÀN CHỈNH NHẤT
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const mqtt = require("mqtt");
 const path = require("path");
 const mongoose = require("mongoose");
 
-// --- 1. KẾT NỐI MONGODB ---
-// Lấy link từ biến môi trường MONGO_URI trên Render
-const mongoURI = process.env.MONGO_URI || "mongodb+srv://iot:FH29y9hfgRDpol2B@iot-cluster.hbgvh83.mongodb.net/?appName=iot-cluster";
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static(__dirname)); // phục vụ index.html
 
-mongoose.connect(mongoURI)
-  .then(() => console.log("🍃 MongoDB Connected"))
-  .catch(err => console.log("❌ MongoDB Error:", err));
+// ==================== 1. KẾT NỐI MONGODB ====================
+const mongoURI =
+  process.env.MONGO_URI ||
+  "mongodb+srv://iot:FH29y9hfgRDpol2B@iot-cluster.hbgvh83.mongodb.net/?appName=iot-cluster";
 
-// --- 2. ĐỊNH NGHĨA MODEL (Cấu trúc dữ liệu) ---
+mongoose
+  .connect(mongoURI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.log("MongoDB Error:", err));
 
-// Schema lưu trạng thái (Chỉ có 1 bản ghi duy nhất cho bể cá)
+// ==================== 2. SCHEMA ====================
 const StateSchema = new mongoose.Schema({
-  deviceId: { type: String, default: "aquarium_main", unique: true }, 
+  deviceId: { type: String, default: "aquarium_main", unique: true },
+
   autoMode: { type: Number, default: 0 },
   pump: { type: Number, default: 0 },
   light: { type: Number, default: 0 },
+
   temperature: { type: Number, default: 0 },
-  waterLevel: { type: Number, default: 0 }, // Tương ứng dist
-  threshold: { type: Number, default: 20 },
+  distance_mm: { type: Number, default: 0 },
+  waterLevel: { type: Number, default: 0 }, // 0-200mm
+  threshold: { type: Number, default: 50 },
+
   lightSchedule: {
     on: { type: String, default: "07:00" },
-    off: { type: String, default: "18:00" }
-  }
-});
-const State = mongoose.model("State", StateSchema);
+    off: { type: String, default: "19:00" },
+  },
 
-// Schema lưu Nhật ký (Log)
+  lightCount: { type: Number, default: 0 },
+  pumpCount: { type: Number, default: 0 },
+  lastUpdate: { type: Date, default: Date.now },
+});
+
 const LogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
-  type: { type: String, default: "info" },   // "info", "action", "error"
+  source: String, // web, esp, auto, button
+  action: String,
+  key: String,
+  value: mongoose.Mixed,
   message: String,
-  details: Object
 });
+
+const State = mongoose.model("State", StateSchema);
 const Log = mongoose.model("Log", LogSchema);
 
-// Khởi tạo trạng thái mặc định nếu chưa có
-async function initDB() {
-  const exist = await State.findOne({ deviceId: "aquarium_main" });
-  if (!exist) {
+// Khởi tạo state mặc định
+async function initState() {
+  const exists = await State.findOne({ deviceId: "aquarium_main" });
+  if (!exists) {
     await State.create({ deviceId: "aquarium_main" });
-    console.log("⚠️ Created default state");
+    console.log("Created default state");
   }
 }
-initDB();
+initState();
 
-// --- 3. MQTT CONFIG ---
-const mqttClient = mqtt.connect("mqtts://6df16538873d4a909d0cfb6afbad9517.s1.eu.hivemq.cloud:8883", {
-  username: "iot_nhom8",
-  password: "Iot123456789",
-  rejectUnauthorized: false,
-  reconnectPeriod: 2000
-});
+// ==================== 3. MQTT ====================
+const mqttClient = mqtt.connect(
+  "mqtts://6df16538873d4a909d0cfb6afbad9517.s1.eu.hivemq.cloud:8883",
+  {
+    username: "iot_nhom8",
+    password: "Iot123456789",
+    rejectUnauthorized: false,
+    reconnectPeriod: 2000,
+  }
+);
 
 mqttClient.on("connect", () => {
-  console.log("⚡ MQTT connected");
+  console.log("MQTT Connected");
   mqttClient.subscribe("fish/tele");
   mqttClient.subscribe("fish/button/#");
 });
 
-// --- 4. XỬ LÝ SERVER & API ---
-const app = express();
-app.use(bodyParser.json());
-app.use(express.static(__dirname));
+// ==================== 4. HÀM HỖ TRỢ ====================
+async function canManualControl() {
+  const s = await State.findOne({ deviceId: "aquarium_main" });
+  return !s || s.autoMode !== 1;
+}
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-// API Lấy trạng thái
-app.get("/state", async (req, res) => {
+async function updateDevice(key, value, source = "unknown") {
   const state = await State.findOne({ deviceId: "aquarium_main" });
-  res.json(state || {});
+  if (!state || state[key] === value) return false;
+
+  if ((key === "light" || key === "pump") && state[key] === 0 && value === 1) {
+    state[key + "Count"] += 1;
+  }
+
+  state[key] = value;
+  state.lastUpdate = new Date();
+  await state.save();
+
+  mqttClient.publish(`fish/cmd/${key}`, String(value));
+
+  await Log.create({
+    source,
+    action: "update",
+    key,
+    value,
+    message: `${source}: ${key}→${value}`,
+  });
+
+  console.log(`[${source}] ${key} = ${value}`);
+  return true;
+}
+
+// ==================== 5. MQTT HANDLER ====================
+mqttClient.on("message", async (topic, message) => {
+  const msg = message.toString().trim();
+
+  // TELEMETRY
+  if (topic === "fish/tele") {
+    try {
+      const data = JSON.parse(msg);
+      const state = await State.findOne({ deviceId: "aquarium_main" });
+
+      if (data.light !== undefined && data.light !== state.light)
+        await updateDevice("light", data.light, "esp");
+
+      if (data.pump !== undefined && data.pump !== state.pump)
+        await updateDevice("pump", data.pump, "esp");
+
+      const upd = {};
+      if (data.temp !== undefined) upd.temperature = data.temp;
+
+      if (data.dist !== undefined) {
+        upd.distance_mm = data.dist;
+        upd.waterLevel = Math.max(0, Math.min(200, data.dist));
+      }
+
+      if (data.threshold !== undefined) upd.threshold = data.threshold;
+      if (data.auto !== undefined) upd.autoMode = data.auto;
+
+      if (Object.keys(upd).length > 0) {
+        upd.lastUpdate = new Date();
+        await State.updateOne(
+          { deviceId: "aquarium_main" },
+          { $set: upd }
+        );
+      }
+
+      await Log.create({
+        source: "esp",
+        action: "tele",
+        message: "Telemetry",
+        value: data,
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // BUTTON
+  else if (topic.startsWith("fish/button/")) {
+    const key = topic.split("/")[2];
+    if (!["light", "pump"].includes(key)) return;
+
+    if (!(await canManualControl())) {
+      await Log.create({
+        source: "button",
+        action: "blocked",
+        key,
+        message: "Auto mode đang bật → chặn nút vật lý",
+      });
+      return;
+    }
+
+    const state = await State.findOne({ deviceId: "aquarium_main" });
+    const newVal = state[key] ? 0 : 1;
+    await updateDevice(key, newVal, "button");
+  }
 });
 
-// API Lấy Log (Lấy 50 dòng mới nhất)
+// ==================== 6. API ====================
+app.get("/", (req, res) =>
+  res.sendFile(path.join(__dirname, "index.html"))
+);
+
+app.get("/state", async (req, res) => {
+  const s = await State.findOne({ deviceId: "aquarium_main" });
+  res.json(s || {});
+});
+
 app.get("/log", async (req, res) => {
-  const logs = await Log.find().sort({ timestamp: -1 }).limit(50);
+  const logs = await Log.find().sort({ timestamp: -1 }).limit(100);
   res.json(logs);
 });
 
-// Hàm cập nhật thiết bị chung
-async function updateDevice(key, value, source = "web") {
-  // 1. Cập nhật DB
-  const updateQuery = {};
-  updateQuery[key] = value;
-  await State.findOneAndUpdate({ deviceId: "aquarium_main" }, updateQuery);
-
-  // 2. Gửi lệnh xuống ESP qua MQTT
-  mqttClient.publish(`fish/cmd/${key}`, String(value));
-
-  // 3. Ghi log
-  await Log.create({ 
-    type: "action", 
-    message: `Set ${key} to ${value} (${source})` 
-  });
-}
-
-// API Cập nhật từ Web
 app.post("/update", async (req, res) => {
-  const body = req.body;
-  for (const key in body) {
-    await updateDevice(key, body[key], "web");
-  }
-  res.json({ success: true });
-});
-
-// --- 5. XỬ LÝ DỮ LIỆU TỪ MQTT ---
-mqttClient.on("message", async (topic, message) => {
-  const msg = message.toString();
   try {
-    if (topic === "fish/tele") {
-      // Nhận dữ liệu cảm biến từ ESP
-      const data = JSON.parse(msg);
-      await State.findOneAndUpdate(
-        { deviceId: "aquarium_main" },
-        { 
-          temperature: data.temp,
-          waterLevel: data.dist, // Giả sử dist là mực nước
-          pump: data.pump,
-          light: data.light,
-          autoMode: data.auto
-        }
-      );
-    } else if (topic.startsWith("fish/button/")) {
-      // Nút bấm vật lý
-      await Log.create({ type: "info", message: `Physical button: ${topic}` });
+    const updates = req.body;
+
+    const allowed = await canManualControl();
+    const tryingToControl = Object.keys(updates).some((k) =>
+      ["light", "pump"].includes(k)
+    );
+
+    if (!allowed && tryingToControl) {
+      return res.status(403).json({
+        success: false,
+        error: "Không được bấm đèn/bơm khi đang ở chế độ TỰ ĐỘNG!",
+      });
     }
-  } catch (e) { console.error(e); }
+
+    for (const [key, val] of Object.entries(updates)) {
+      if (key === "lightSchedule") {
+        await State.updateOne(
+          { deviceId: "aquarium_main" },
+          { $set: { lightSchedule: val, lastUpdate: new Date() } }
+        );
+        await Log.create({
+          source: "web",
+          action: "schedule",
+          message: "Cập nhật lịch đèn",
+        });
+      } else if (key === "autoMode") {
+        await updateDevice("autoMode", val, "web");
+      } else if (key === "threshold") {
+        await State.updateOne(
+          { deviceId: "aquarium_main" },
+          { $set: { threshold: val, lastUpdate: new Date() } }
+        );
+        await Log.create({
+          source: "web",
+          action: "config",
+          key,
+          value: val,
+        });
+      } else if (["light", "pump"].includes(key)) {
+        await updateDevice(key, val, "web");
+      }
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
-// --- 6. CHẾ ĐỘ TỰ ĐỘNG (AUTO MODE) ---
+// ==================== 7. AUTO MODE ====================
 setInterval(async () => {
   try {
-    const state = await State.findOne({ deviceId: "aquarium_main" });
-    if (!state || !state.autoMode) return;
+    const s = await State.findOne({ deviceId: "aquarium_main" });
+    if (!s || s.autoMode !== 1) return;
 
-    // Giờ Việt Nam (UTC+7)
     const now = new Date();
     const h = (now.getUTCHours() + 7) % 24;
-    const m = now.getUTCMinutes();
-    const curTime = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const time = `${String(h).padStart(2, "0")}:${String(
+      now.getUTCMinutes()
+    ).padStart(2, "0")}`;
 
-    // Lịch đèn
-    if (state.lightSchedule) {
-      if (curTime === state.lightSchedule.on && state.light === 0) 
+    if (s.lightSchedule) {
+      if (time === s.lightSchedule.on && s.light === 0)
         await updateDevice("light", 1, "auto");
-      if (curTime === state.lightSchedule.off && state.light === 1) 
+
+      if (time === s.lightSchedule.off && s.light === 1)
         await updateDevice("light", 0, "auto");
     }
 
-    // Bơm tự động (Ví dụ: nước thấp < threshold thì bơm)
-    if (state.waterLevel < state.threshold && state.pump === 0) {
-       await updateDevice("pump", 1, "auto-level");
-    } else if (state.waterLevel >= state.threshold && state.pump === 1) {
-       await updateDevice("pump", 0, "auto-level");
-    }
+    if (s.waterLevel < s.threshold && s.pump === 0)
+      await updateDevice("pump", 1, "auto");
+    else if (s.waterLevel >= s.threshold && s.pump === 1)
+      await updateDevice("pump", 0, "auto");
+  } catch (e) {
+    console.error(e);
+  }
+}, 60000);
 
-  } catch (err) { console.error(err); }
-}, 60000); // Quét mỗi 1 phút
-
+// ==================== 8. START ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
