@@ -159,7 +159,6 @@
                         <h2 class="font-bold flex items-center gap-2 text-lg">📊 Thống Kê</h2>
                         <span class="text-xs text-green-400 bg-green-900 px-2 py-1 rounded-full">Live Data</span>
                     </div>
-
                     <div class="flex-1 space-y-6">
                         <div>
                             <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">Hôm Nay</h3>
@@ -208,6 +207,46 @@
                     
                     <div class="mt-6 text-center">
                         <p class="text-xs text-gray-600 italic">Dữ liệu được cập nhật tự động mỗi 10 phút</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+                    <h2 class="font-bold text-slate-700 mb-4 flex items-center gap-2">📅 Tra Cứu Lịch Sử</h2>
+                    
+                    <div class="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg">
+                        <button onclick="switchSearchMode('date')" id="btnModeDate" class="flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition">Theo Ngày</button>
+                        <button onclick="switchSearchMode('month')" id="btnModeMonth" class="flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition">Theo Tháng</button>
+                    </div>
+                
+                    <div class="flex gap-2 mb-4">
+                        <input type="date" id="searchDateInput" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                        <input type="month" id="searchMonthInput" class="hidden flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                        <button onclick="searchData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-sm">Xem</button>
+                    </div>
+                
+                    <div id="searchResult" class="hidden space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="text-center mb-2 border-b border-gray-200 pb-2">
+                            <span class="text-xs font-bold text-gray-400 uppercase">Kết quả cho:</span><br>
+                            <span id="resultLabel" class="font-bold text-slate-800">...</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Bật Bơm:</span>
+                                <span class="font-bold text-cyan-600"><span id="resPump">0</span> lần</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Bật Đèn:</span>
+                                <span class="font-bold text-yellow-600"><span id="resLight">0</span> lần</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Nhiệt độ TB:</span>
+                                <span class="font-bold text-blue-600"><span id="resTemp">0</span>°C</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Mực nước TB:</span>
+                                <span class="font-bold text-indigo-600"><span id="resWater">0</span>mm</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -416,6 +455,64 @@
         checkAuth();
         setInterval(() => { if(TOKEN) fetchState(); }, 1000);
         setInterval(() => { if(TOKEN) fetchStats(); }, 10000); // Cập nhật thống kê chậm hơn (10s)
+
+        // --- SEARCH HISTORY LOGIC ---
+let searchMode = 'date'; // Mặc định là tìm theo ngày
+
+function switchSearchMode(mode) {
+    searchMode = mode;
+    const dateInput = document.getElementById('searchDateInput');
+    const monthInput = document.getElementById('searchMonthInput');
+    const btnDate = document.getElementById('btnModeDate');
+    const btnMonth = document.getElementById('btnModeMonth');
+
+    if (mode === 'date') {
+        dateInput.classList.remove('hidden');
+        monthInput.classList.add('hidden');
+        btnDate.className = "flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition";
+        btnMonth.className = "flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition";
+    } else {
+        dateInput.classList.add('hidden');
+        monthInput.classList.remove('hidden');
+        btnMonth.className = "flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition";
+        btnDate.className = "flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition";
+    }
+}
+
+async function searchData() {
+    if (!TOKEN) return alert("Vui lòng đăng nhập!");
+    
+    // Lấy giá trị input
+    const val = searchMode === 'date' 
+        ? document.getElementById('searchDateInput').value 
+        : document.getElementById('searchMonthInput').value;
+
+    if (!val) return alert("Vui lòng chọn thời gian!");
+
+    try {
+        const res = await fetch('/search-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+            body: JSON.stringify({ type: searchMode, value: val })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            document.getElementById('searchResult').classList.remove('hidden');
+            document.getElementById('resultLabel').innerText = val;
+            
+            document.getElementById('resPump').innerText = data.pump;
+            document.getElementById('resLight').innerText = data.light;
+            document.getElementById('resTemp').innerText = data.temp;
+            document.getElementById('resWater').innerText = data.water;
+        } else {
+            alert("Lỗi: " + data.error);
+        }
+    } catch (e) {
+        alert("Lỗi kết nối server");
+    }
+}
     </script>
 </body>
 </html>

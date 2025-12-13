@@ -263,7 +263,54 @@ app.get("/stats", async (req, res) => {
         });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// --- API TRA CỨU LỊCH SỬ (MỚI) ---
+app.post("/search-history", async (req, res) => {
+  try {
+      const { type, value } = req.body; // type: 'date' hoặc 'month', value: '2023-10-25' hoặc '2023-10'
+      
+      let startTime, endTime;
+      const dateVal = new Date(value);
 
+      if (type === 'date') {
+          // Nếu chọn Ngày: Từ 00:00:00 đến 23:59:59 của ngày đó
+          startTime = new Date(dateVal.setHours(0,0,0,0));
+          endTime = new Date(dateVal.setHours(23,59,59,999));
+      } else {
+          // Nếu chọn Tháng: Từ ngày 1 đến ngày cuối cùng của tháng
+          startTime = new Date(dateVal.getFullYear(), dateVal.getMonth(), 1);
+          endTime = new Date(dateVal.getFullYear(), dateVal.getMonth() + 1, 0, 23, 59, 59);
+      }
+
+      // 1. Đếm số lần bật (Query Log)
+      const countPump = await Log.countDocuments({ key: "pump", value: 1, timestamp: { $gte: startTime, $lte: endTime } });
+      const countLight = await Log.countDocuments({ key: "light", value: 1, timestamp: { $gte: startTime, $lte: endTime } });
+
+      // 2. Tính trung bình (Query History)
+      const avgResult = await History.aggregate([
+          { $match: { timestamp: { $gte: startTime, $lte: endTime } } },
+          { 
+              $group: { 
+                  _id: null, 
+                  avgTemp: { $avg: "$temperature" },
+                  avgWater: { $avg: "$waterLevel" }
+              } 
+          }
+      ]);
+
+      const avgs = avgResult.length > 0 ? avgResult[0] : { avgTemp: 0, avgWater: 0 };
+
+      res.json({
+          success: true,
+          pump: countPump,
+          light: countLight,
+          temp: Math.round(avgs.avgTemp * 10) / 10,
+          water: Math.round(avgs.avgWater * 10) / 10
+      });
+
+  } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+  }
+});
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 // ==================== 7. AUTO LOGIC ====================
