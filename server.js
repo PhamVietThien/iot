@@ -1,4 +1,4 @@
-// server.js - FINAL VERSION (Có Login + Phân Quyền + Reset WiFi)
+// server.js - FINAL VERSION (Có Login + Thống Kê + Monitor Auto)
 const express = require("express");
 const bodyParser = require("body-parser");
 const mqtt = require("mqtt");
@@ -16,39 +16,31 @@ mongoose.connect(mongoURI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.log("❌ MongoDB Error:", err));
 
-// --- Schema Trạng Thái Bể Cá ---
+// --- Schema Trạng Thái Hiện Tại ---
 const StateSchema = new mongoose.Schema({
   deviceId: { type: String, default: "aquarium_main", unique: true },
-  
-  // Điều khiển
   autoMode: { type: Number, default: 0 },
   pump: { type: Number, default: 0 },
   light: { type: Number, default: 0 },
-  
-  // Cảm biến
   temperature: { type: Number, default: 0 },
   distance_mm: { type: Number, default: 0 },
   waterLevel: { type: Number, default: 0 },
-  
-  // Thông tin mạng
   wifiSSID: { type: String, default: "Disconnect" },
   ip: { type: String, default: "0.0.0.0" },
   rssi: { type: Number, default: 0 },
-  
-  // Cài đặt
   threshold: { type: Number, default: 100 },
   lightSchedule: { on: { type: String, default: "18:00" }, off: { type: String, default: "06:00" } },
   lastUpdated: { type: Date, default: Date.now },
 });
 
-// --- Schema Tài Khoản (User) - MỚI ---
+// --- Schema User ---
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, default: 'viewer' } // 'admin' hoặc 'viewer'
+    role: { type: String, default: 'viewer' }
 });
 
-// --- Schema Log ---
+// --- Schema Log (Dùng để đếm số lần bật tắt) ---
 const LogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   source: String,
@@ -58,91 +50,67 @@ const LogSchema = new mongoose.Schema({
   message: String,
 });
 
+// --- Schema History (MỚI: Dùng để tính trung bình nhiệt độ/mực nước) ---
+const HistorySchema = new mongoose.Schema({
+    timestamp: { type: Date, default: Date.now },
+    temperature: Number,
+    waterLevel: Number
+});
+
 const State = mongoose.model("State", StateSchema);
 const User = mongoose.model("User", UserSchema);
 const Log = mongoose.model("Log", LogSchema);
+const History = mongoose.model("History", HistorySchema);
 
-// ==================== 2. KHỞI TẠO DỮ LIỆU ====================
 // ==================== 2. KHỞI TẠO DỮ LIỆU ====================
 async function initData() {
-  // 1. Tạo state mặc định
   if (!(await State.findOne({ deviceId: "aquarium_main" }))) {
     await State.create({ deviceId: "aquarium_main" });
-    console.log("🛠️ Created default device state");
   }
-
-  // 2. CẬP NHẬT HOẶC TẠO ADMIN (Sửa đoạn này)
-  // Dùng findOneAndUpdate để: Nếu chưa có thì tạo, nếu có rồi thì sửa lại quyền thành 'admin'
   await User.findOneAndUpdate(
       { username: "admin" }, 
-      { 
-          $set: { 
-              password: "123", 
-              role: "admin" // <--- Dòng quan trọng: Ép quyền thành admin
-          } 
-      },
+      { $set: { password: "123", role: "admin" } },
       { upsert: true, new: true }
   );
-  console.log("👑 Đã cập nhật/khôi phục tài khoản: admin / 123 (Quyền: Admin)");
 }
 initData();
 
-// ==================== 3. HỆ THỐNG XÁC THỰC (AUTH) ====================
-const SESSIONS = {}; // Lưu token tạm thời (Token -> Role)
-
+// ==================== 3. AUTH SYSTEM ====================
+const SESSIONS = {}; 
 const generateToken = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
 
-// Middleware: Chặn nếu không phải Admin
 const requireAdmin = (req, res, next) => {
     const token = req.headers['authorization'];
-    if (SESSIONS[token] && SESSIONS[token] === 'admin') {
-        next(); // Cho qua
-    } else {
-        res.status(403).json({ success: false, error: "⛔ Bạn không có quyền Admin!" });
-    }
+    if (SESSIONS[token] && SESSIONS[token] === 'admin') next();
+    else res.status(403).json({ success: false, error: "⛔ Bạn không có quyền Admin!" });
 };
 
-// API Đăng nhập
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
-    try {
-        const user = await User.findOne({ username, password });
-        if (user) {
-            const token = generateToken();
-            SESSIONS[token] = user.role; // Lưu quyền vào session
-            res.json({ success: true, token, role: user.role, username: user.username });
-            console.log(`👤 Login: ${username} (${user.role})`);
-        } else {
-            res.json({ success: false, error: "Sai tên đăng nhập hoặc mật khẩu" });
-        }
-    } catch (e) { res.status(500).json({ success: false, error: "Lỗi Server" }); }
+    const user = await User.findOne({ username, password });
+    if (user) {
+        const token = generateToken();
+        SESSIONS[token] = user.role;
+        res.json({ success: true, token, role: user.role, username: user.username });
+    } else {
+        res.json({ success: false, error: "Sai tên đăng nhập hoặc mật khẩu" });
+    }
 });
 
-// API Tạo tài khoản mới (Chỉ Admin mới được dùng)
 app.post("/register", requireAdmin, async (req, res) => {
     const { newUsername, newPassword, newRole } = req.body;
-    
-    if (!newUsername || !newPassword) return res.json({ success: false, error: "Thiếu thông tin" });
-
     try {
         const exists = await User.findOne({ username: newUsername });
-        if (exists) return res.json({ success: false, error: "Tên đăng nhập đã tồn tại" });
-        
+        if (exists) return res.json({ success: false, error: "Tên tồn tại" });
         await User.create({ username: newUsername, password: newPassword, role: newRole });
-        res.json({ success: true, message: `Đã tạo user: ${newUsername} (${newRole})` });
-        console.log(`✨ New User: ${newUsername} (${newRole})`);
+        res.json({ success: true, message: `Đã tạo: ${newUsername}` });
     } catch(e) { res.status(500).json({success: false, error: e.message}); }
 });
 
 // ==================== 4. MQTT & DEVICE CONTROL ====================
 const mqttClient = mqtt.connect(
   "mqtts://6df16538873d4a909d0cfb6afbad9517.s1.eu.hivemq.cloud:8883",
-  {
-    username: "iot_nhom8",
-    password: "Iot123456789",
-    rejectUnauthorized: false,
-    reconnectPeriod: 2000,
-  }
+  { username: "iot_nhom8", password: "Iot123456789", rejectUnauthorized: false, reconnectPeriod: 2000 }
 );
 
 mqttClient.on("connect", () => {
@@ -152,18 +120,15 @@ mqttClient.on("connect", () => {
   mqttClient.subscribe("fish/button/#");
 });
 
-// Hàm cập nhật DB và gửi MQTT
 async function updateDevice(key, value, source = "unknown") {
   const state = await State.findOne({ deviceId: "aquarium_main" });
   if (!state) return false;
   state[key] = value;
   state.lastUpdated = new Date();
   await state.save();
-
-  // Gửi lệnh xuống ESP
   mqttClient.publish(`fish/cmd/${key}`, String(value));
-
-  // Ghi log
+  
+  // Chỉ ghi Log khi có sự thay đổi trạng thái điều khiển
   await Log.create({
     source, action: "update", key, value, 
     message: `${source.toUpperCase()}: ${key} → ${value}`
@@ -171,25 +136,24 @@ async function updateDevice(key, value, source = "unknown") {
   return true;
 }
 
-// Xử lý tin nhắn từ ESP
+// Biến check để không spam Database History
+let lastHistorySave = 0;
+
 mqttClient.on("message", async (topic, message) => {
   const msg = message.toString().trim();
 
-  // 1. Nhận thông tin cảm biến & WiFi
+  // 1. Nhận thông tin cảm biến
   if (topic === "fish/tele" || topic === "fish/aquarium_main/status") {
     try {
       const data = JSON.parse(msg);
       const updates = {};
       
       if (data.temperature !== undefined) updates.temperature = data.temperature;
-      if (data.dist !== undefined) updates.distance_mm = data.dist; // map cũ
+      if (data.dist !== undefined) updates.distance_mm = data.dist;
       if (data.waterLevel !== undefined) updates.waterLevel = data.waterLevel;
-      
       if (data.autoMode !== undefined) updates.autoMode = data.autoMode;
       if (data.pump !== undefined) updates.pump = data.pump;
       if (data.light !== undefined) updates.light = data.light;
-      
-      // WiFi Info
       if (data.wifiSSID) updates.wifiSSID = data.wifiSSID;
       if (data.ip) updates.ip = data.ip;
       if (data.rssi) updates.rssi = data.rssi;
@@ -197,16 +161,25 @@ mqttClient.on("message", async (topic, message) => {
       if (Object.keys(updates).length > 0) {
         updates.lastUpdated = new Date();
         await State.updateOne({ deviceId: "aquarium_main" }, { $set: updates }, { upsert: true });
+
+        // --- LƯU LỊCH SỬ CẢM BIẾN (Mỗi 10 phút 1 lần) ---
+        const now = Date.now();
+        if (now - lastHistorySave > 10 * 60 * 1000) {
+            if(updates.temperature && updates.waterLevel) {
+                await History.create({
+                    temperature: updates.temperature,
+                    waterLevel: updates.waterLevel
+                });
+                console.log("📉 Saved History Data point");
+                lastHistorySave = now;
+            }
+        }
       }
     } catch (e) { console.error("MQTT Parse Error", e.message); }
   }
-  
-  // 2. Nhận nút bấm vật lý (fish/button/pump...)
   else if (topic.startsWith("fish/button/")) {
       const key = topic.split("/")[2];
       const s = await State.findOne({ deviceId: "aquarium_main" });
-      
-      // Logic: Nếu Auto đang bật thì không cho chỉnh tay (trừ nút Auto)
       if (s && (s.autoMode !== 1 || key === 'autoMode')) {
          const newVal = s[key] ? 0 : 1;
          await updateDevice(key, newVal, "button");
@@ -215,11 +188,22 @@ mqttClient.on("message", async (topic, message) => {
 });
 
 // ==================== 5. API ĐIỀU KHIỂN (CẦN QUYỀN ADMIN) ====================
-
-// API Cập nhật thiết bị (Bơm, Đèn...)
 app.post("/update", requireAdmin, async (req, res) => {
   try {
     const updates = req.body;
+    
+    // --- ĐOẠN MỚI THÊM: KIỂM TRA AUTO MODE ---
+    // Lấy trạng thái hiện tại
+    const currentState = await State.findOne({ deviceId: "aquarium_main" });
+    
+    // Nếu đang Auto Mode = 1 VÀ người dùng đang cố điều khiển Bơm hoặc Đèn (mà không phải lệnh tắt Auto)
+    if (currentState && currentState.autoMode === 1 && updates.autoMode === undefined) {
+        if (updates.pump !== undefined || updates.light !== undefined) {
+            return res.json({ success: false, error: "⚠️ Đang ở chế độ Tự Động (Auto)! Vui lòng tắt Auto trước khi điều khiển thủ công." });
+        }
+    }
+    // ------------------------------------------
+
     for (const [key, val] of Object.entries(updates)) {
       if (key === "lightSchedule" || key === "threshold") {
         await State.updateOne({ deviceId: "aquarium_main" }, { $set: { [key]: val } });
@@ -231,29 +215,53 @@ app.post("/update", requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// API Reset WiFi
 app.post("/reset-wifi", requireAdmin, async (req, res) => {
-  try {
-    console.log("⚠️ Admin requesting WiFi Reset...");
     if (mqttClient.connected) {
       mqttClient.publish("fish/aquarium_main/set", "RESET_WIFI");
       await State.updateOne({ deviceId: "aquarium_main" }, { $set: { wifiSSID: "Reseting...", ip: "..." } });
-      res.json({ success: true, message: "Lệnh Reset đã được gửi!" });
-    } else {
-      res.status(500).json({ success: false, error: "Mất kết nối MQTT" });
-    }
-  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+      res.json({ success: true });
+    } else res.status(500).json({ success: false, error: "Mất kết nối MQTT" });
 });
 
-// ==================== 6. PUBLIC API (KHÔNG CẦN QUYỀN) ====================
+// ==================== 6. PUBLIC API & STATS ====================
 app.get("/state", async (req, res) => {
   const s = await State.findOne({ deviceId: "aquarium_main" });
   res.json(s || {});
 });
 
-app.get("/log", async (req, res) => {
-  const logs = await Log.find().sort({ timestamp: -1 }).limit(50);
-  res.json(logs);
+// API THỐNG KÊ (MỚI)
+app.get("/stats", async (req, res) => {
+    try {
+        const now = new Date();
+        const startOfDay = new Date(now.setHours(0,0,0,0));
+        const startOfMonth = new Date(now.setDate(1));
+
+        // 1. Đếm số lần bật
+        const countPumpDay = await Log.countDocuments({ key: "pump", value: 1, timestamp: { $gte: startOfDay } });
+        const countPumpMonth = await Log.countDocuments({ key: "pump", value: 1, timestamp: { $gte: startOfMonth } });
+        
+        const countLightDay = await Log.countDocuments({ key: "light", value: 1, timestamp: { $gte: startOfDay } });
+        const countLightMonth = await Log.countDocuments({ key: "light", value: 1, timestamp: { $gte: startOfMonth } });
+
+        // 2. Tính trung bình cảm biến (Dùng Aggregation)
+        async function getAvg(field, dateFilter) {
+            const result = await History.aggregate([
+                { $match: { timestamp: { $gte: dateFilter } } },
+                { $group: { _id: null, avgVal: { $avg: `$${field}` } } }
+            ]);
+            return result.length > 0 ? Math.round(result[0].avgVal * 10) / 10 : 0;
+        }
+
+        const avgTempDay = await getAvg("temperature", startOfDay);
+        const avgTempMonth = await getAvg("temperature", startOfMonth);
+        const avgWaterDay = await getAvg("waterLevel", startOfDay);
+        const avgWaterMonth = await getAvg("waterLevel", startOfMonth);
+
+        res.json({
+            day: { pump: countPumpDay, light: countLightDay, temp: avgTempDay, water: avgWaterDay },
+            month: { pump: countPumpMonth, light: countLightMonth, temp: avgTempMonth, water: avgWaterMonth }
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
@@ -272,13 +280,13 @@ setInterval(async () => {
       if (time === s.lightSchedule.on && s.light === 0) await updateDevice("light", 1, "auto");
       if (time === s.lightSchedule.off && s.light === 1) await updateDevice("light", 0, "auto");
     }
-    // Logic bơm
+    
+    // Logic bơm: Thấp hơn ngưỡng -> Bơm
     if (s.waterLevel < s.threshold && s.pump === 0) await updateDevice("pump", 1, "auto");
     else if (s.waterLevel >= s.threshold && s.pump === 1) await updateDevice("pump", 0, "auto");
     
   } catch (e) { console.error("Auto error:", e); }
 }, 60000);
 
-// ==================== 8. START ====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
