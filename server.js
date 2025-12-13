@@ -139,18 +139,41 @@ async function updateDevice(key, value, source = "unknown") {
 // Biến check để không spam Database History
 let lastHistorySave = 0;
 
+// --- XỬ LÝ MQTT (ĐÃ NÂNG CẤP ĐỂ FIX LỖI) ---
 mqttClient.on("message", async (topic, message) => {
   const msg = message.toString().trim();
+  console.log(`📩 MQTT Nhận [${topic}]:`, msg); // <--- In ra để kiểm tra
 
-  // 1. Nhận thông tin cảm biến
+  // 1. Nhận thông tin cảm biến (Tele)
   if (topic === "fish/tele" || topic === "fish/aquarium_main/status") {
     try {
       const data = JSON.parse(msg);
       const updates = {};
       
-      if (data.temperature !== undefined) updates.temperature = data.temperature;
-      if (data.dist !== undefined) updates.distance_mm = data.dist;
-      if (data.waterLevel !== undefined) updates.waterLevel = data.waterLevel;
+      // --- MAP DỮ LIỆU LINH HOẠT (Chấp nhận nhiều tên biến khác nhau) ---
+      
+      // 1. Nhiệt độ (chấp nhận: temperature, temp, t)
+      const rawTemp = data.temperature ?? data.temp ?? data.t;
+      if (rawTemp !== undefined) updates.temperature = parseFloat(rawTemp);
+
+      // 2. Khoảng cách đo được (chấp nhận: distance, dist, d)
+      const rawDist = data.distance ?? data.dist ?? data.distance_mm ?? data.d;
+      if (rawDist !== undefined) updates.distance_mm = parseFloat(rawDist);
+
+      // 3. Mực nước (QUAN TRỌNG: Tự tính nếu ESP không gửi)
+      // Nếu ESP gửi trực tiếp waterLevel thì lấy, nếu không thì tính: 
+      // Mực nước = (Chiều cao bể - Khoảng cách đo). Giả sử bể cao 200mm.
+      const TANK_HEIGHT = 200; 
+      if (data.waterLevel !== undefined) {
+          updates.waterLevel = parseFloat(data.waterLevel);
+      } else if (rawDist !== undefined) {
+          // Tự tính toán mực nước dựa trên cảm biến siêu âm
+          let calcLevel = TANK_HEIGHT - parseFloat(rawDist); 
+          if(calcLevel < 0) calcLevel = 0; // Không để âm
+          updates.waterLevel = calcLevel;
+      }
+
+      // 4. Các thông số khác
       if (data.autoMode !== undefined) updates.autoMode = data.autoMode;
       if (data.pump !== undefined) updates.pump = data.pump;
       if (data.light !== undefined) updates.light = data.light;
@@ -158,29 +181,45 @@ mqttClient.on("message", async (topic, message) => {
       if (data.ip) updates.ip = data.ip;
       if (data.rssi) updates.rssi = data.rssi;
 
+      // --- CẬP NHẬT VÀO DB ---
       if (Object.keys(updates).length > 0) {
         updates.lastUpdated = new Date();
         await State.updateOne({ deviceId: "aquarium_main" }, { $set: updates }, { upsert: true });
 
-        // --- LƯU LỊCH SỬ CẢM BIẾN (Mỗi 10 phút 1 lần) ---
+        // LOGGING ĐỂ KIỂM TRA
+        console.log("✅ Đã cập nhật trạng thái:", updates);
+
+        // --- LƯU LỊCH SỬ THỐNG KÊ ---
         const now = Date.now();
-        if (now - lastHistorySave > 10 * 60 * 1000) {
-            if(updates.temperature && updates.waterLevel) {
+        if (now - lastHistorySave > 10 * 60 * 1000) { // 10 phút/lần
+            if(updates.temperature || updates.waterLevel) {
+                // Lấy lại state mới nhất để đảm bảo có đủ dữ liệu
+                const currentState = await State.findOne({ deviceId: "aquarium_main" });
                 await History.create({
-                    temperature: updates.temperature,
-                    waterLevel: updates.waterLevel
+                    temperature: currentState.temperature,
+                    waterLevel: currentState.waterLevel
                 });
                 console.log("📉 Saved History Data point");
                 lastHistorySave = now;
             }
         }
       }
-    } catch (e) { console.error("MQTT Parse Error", e.message); }
+    } catch (e) { console.error("❌ Lỗi parse JSON MQTT:", e.message); }
   }
+  
+  // 2. Xử lý nút bấm vật lý (Logic giữ nguyên)
   else if (topic.startsWith("fish/button/")) {
-      const key = topic.split("/")[2];
+      const key = topic.split("/")[2]; // Lấy pump, light, autoMode
+      console.log("🔘 Nút vật lý bấm:", key);
+      
       const s = await State.findOne({ deviceId: "aquarium_main" });
-      if (s && (s.autoMode !== 1 || key === 'autoMode')) {
+      // Logic chặn nút nếu đang Auto (như đã làm trước đó)
+      if (s && s.autoMode === 1 && key !== 'autoMode') {
+          console.log("⛔ Bỏ qua nút bấm do đang Auto Mode");
+          return; 
+      }
+      
+      if (s) {
          const newVal = s[key] ? 0 : 1;
          await updateDevice(key, newVal, "button");
       }
