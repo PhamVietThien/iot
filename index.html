@@ -1,518 +1,599 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Aquarium Manager</title>
+    <title>Hệ Thống Bể Cá Thông Minh</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
     <style>
         .blink { animation: blinker 1s linear infinite; } 
         @keyframes blinker { 50% { opacity: 0; } }
+        
+        /* Tùy chỉnh thanh cuộn */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="bg-slate-100 p-4 md:p-8 min-h-screen font-sans">
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
 
-    <div id="loginModal" class="fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
-            <h2 class="text-3xl font-bold text-blue-600 mb-2">🔐 Đăng Nhập</h2>
-            <div class="space-y-4 mt-6">
-                <input type="text" id="username" placeholder="User" class="w-full p-3 border rounded-lg outline-none focus:border-blue-500">
-                <input type="password" id="password" placeholder="Pass" class="w-full p-3 border rounded-lg outline-none focus:border-blue-500">
-                <button onclick="login()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition transform active:scale-95">
-                    Truy Cập
-                </button>
-                <p id="loginError" class="text-red-500 text-sm hidden font-bold animate-pulse"></p>
-            </div>
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-6 text-center text-slate-700">Đăng Nhập Hệ Thống</h2>
+            <input id="username" type="text" placeholder="Tên đăng nhập" class="w-full p-3 mb-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <input id="password" type="password" placeholder="Mật khẩu" class="w-full p-3 mb-6 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button onclick="login()" class="w-full bg-blue-600 text-white font-semibold p-3 rounded-lg hover:bg-blue-700 transition duration-200">Đăng Nhập</button>
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto filter blur-sm transition duration-500" id="mainContent">
-        
-        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-xl shadow-sm">
-            <div class="flex items-center gap-3">
-                <span class="text-4xl">🐠</span>
+    <header class="bg-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-3xl font-extrabold text-blue-600 flex items-center">
+                <i class="fas fa-fish mr-3"></i>
+                Aqua Smart Home
+            </h1>
+            <div class="flex items-center space-x-4">
+                <div id="admin-controls" class="hidden space-x-2">
+                    <button onclick="toggleRegisterModal(true)" class="bg-green-500 text-white p-2 rounded-lg text-sm hover:bg-green-600 transition duration-150">
+                        <i class="fas fa-user-plus mr-1"></i> Tạo User
+                    </button>
+                    <button onclick="toggleConfigModal(true)" class="bg-yellow-500 text-white p-2 rounded-lg text-sm hover:bg-yellow-600 transition duration-150">
+                        <i class="fas fa-cogs mr-1"></i> Cài đặt (Admin)
+                    </button>
+                </div>
+                <button onclick="logout()" class="bg-red-500 text-white p-2 rounded-lg text-sm hover:bg-red-600 transition duration-150">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Đăng Xuất
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            
+            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
+                <div class="p-3 bg-red-100 rounded-full text-red-600 text-2xl"><i class="fas fa-thermometer-half"></i></div>
                 <div>
-                    <h1 class="text-2xl font-extrabold text-slate-800">Hệ Thống Bể Cá IoT</h1>
-                    <p class="text-gray-500 text-xs">User: <span id="userDisplay" class="font-bold">...</span> | Role: <span id="roleDisplay" class="text-blue-600 font-bold">...</span></p>
+                    <p class="text-sm font-medium text-slate-500">Nhiệt Độ</p>
+                    <p id="temperature" class="text-3xl font-bold text-slate-800">-- °C</p>
                 </div>
             </div>
-            <button onclick="logout()" class="text-sm bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition">
-                Đăng xuất
-            </button>
-        </header>
 
+            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
+                <div class="p-3 bg-blue-100 rounded-full text-blue-600 text-2xl"><i class="fas fa-water"></i></div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Mực Nước (Ngưỡng: <span id="currentThreshold">--</span>%)</p>
+                    <p id="waterLevel" class="text-3xl font-bold text-slate-800">-- %</p>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
+                <div id="fishIcon" class="p-3 bg-gray-200 rounded-full text-gray-500 text-2xl"><i class="fas fa-eye"></i></div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Phát hiện Cá</p>
+                    <p id="fishDetected" class="text-3xl font-bold text-gray-500">Không</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-lg transition transform hover:scale-[1.02]">
+                <div class="flex items-center space-x-4 mb-2">
+                    <div class="p-3 bg-purple-100 rounded-full text-purple-600 text-2xl"><i class="fas fa-wifi"></i></div>
+                    <p class="text-xl font-bold text-slate-800">Thông tin Mạng</p>
+                </div>
+                <div id="network-info" class="text-sm text-slate-600 space-y-1">
+                    <p>SSID: <span id="wifiSSID" class="font-semibold">--</span></p>
+                    <p>IP: <span id="ip" class="font-semibold">--</span></p>
+                    <p>RSSI: <span id="rssi" class="font-semibold">-- dBm</span></p>
+                </div>
+            </div>
+        </div>
+        
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div class="lg:col-span-1 space-y-6">
-                
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <h2 class="font-bold text-slate-700 mb-3 flex items-center gap-2">🔍 Kiểm tra Auto</h2>
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Điều Khiển</h2>
                     
-                    <div class="mb-4">
-                        <div class="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>Mực nước hiện tại</span>
-                            <span>Ngưỡng cài đặt</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden relative">
-                                <div id="waterBar" class="bg-cyan-500 h-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                            <span class="text-xs font-bold text-slate-700" id="monitorWater">0mm</span>
-                        </div>
-                        <div class="text-right text-xs text-orange-500 font-bold mt-1" id="monitorThreshold">Ngưỡng: 100mm</div>
-                        <p id="pumpReason" class="text-xs italic text-gray-400 mt-1 text-center">...</p>
-                    </div>
+                    <button id="btnAutoMode" onclick="control('autoMode')" class="w-full flex justify-between items-center p-4 mb-3 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
+                        <span class="font-semibold text-lg"><i class="fas fa-robot mr-2"></i> Chế độ Tự động</span>
+                        <span id="autoModeState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
+                    </button>
 
-                    <div class="border-t pt-3">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-xs text-gray-500">Giờ hiện tại: <span id="currentTime" class="font-bold text-slate-800">--:--</span></span>
-                            <span class="text-xs text-purple-600 font-bold" id="monitorSchedule">Lịch: --:-- ➜ --:--</span>
-                        </div>
-                        <p id="lightReason" class="text-xs italic text-gray-400 mt-1 text-center">...</p>
-                    </div>
+                    <button id="btnPump" onclick="control('pump')" class="w-full flex justify-between items-center p-4 mb-3 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
+                        <span class="font-semibold text-lg"><i class="fas fa-tint mr-2"></i> Máy Bơm</span>
+                        <span id="pumpState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
+                    </button>
+                    
+                    <button id="btnLight" onclick="control('light')" class="w-full flex justify-between items-center p-4 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
+                        <span class="font-semibold text-lg"><i class="fas fa-lightbulb mr-2"></i> Đèn Chiếu Sáng</span>
+                        <span id="lightState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
+                    </button>
+                    
                 </div>
-
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div id="blockClickOverlay" class="hidden absolute inset-0 bg-slate-100 bg-opacity-60 z-10 flex items-center justify-center backdrop-blur-[1px]">
-                        <span class="bg-slate-800 text-white text-xs px-3 py-1 rounded-full">Chế độ xem</span>
+                
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Lịch Đèn Tự Động</h2>
+                    <p class="text-sm text-slate-500 mb-2">Chỉ áp dụng khi **Chế độ Tự động** BẬT</p>
+                    <div class="flex justify-between p-3 bg-slate-100 rounded-lg">
+                        <span class="font-semibold">Bật lúc:</span>
+                        <span id="scheduleOn" class="font-bold text-green-600">--:--</span>
                     </div>
-
-                    <h2 class="font-bold text-slate-700 mb-3">🎛️ Điều khiển</h2>
-                    <button id="btnAuto" onclick="toggleDevice('autoMode')" class="w-full py-3 mb-3 rounded-xl font-bold text-white bg-gray-400 transition-all shadow-md">Auto Mode</button>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button id="btnPump" onclick="toggleDevice('pump')" class="py-3 rounded-xl font-bold text-white bg-gray-400 transition-all shadow-md flex flex-col items-center justify-center gap-2">
-                            <span>🌊</span> Máy Bơm
-                        </button>
-                        <button id="btnLight" onclick="toggleDevice('light')" class="py-3 rounded-xl font-bold text-white bg-gray-400 transition-all shadow-md flex flex-col items-center justify-center gap-2">
-                            <span>💡</span> Đèn LED
-                        </button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
-                        <p class="text-xs text-gray-500">Nhiệt độ</p>
-                        <p class="text-2xl font-bold text-blue-600"><span id="temperature">--</span>°C</p>
-                    </div>
-                    <div class="bg-cyan-50 p-4 rounded-xl text-center border border-cyan-100">
-                        <p class="text-xs text-gray-500">Mực nước</p>
-                        <p class="text-2xl font-bold text-cyan-600"><span id="waterLevel">--</span>mm</p>
+                    <div class="flex justify-between p-3 bg-slate-100 rounded-lg mt-2">
+                        <span class="font-semibold">Tắt lúc:</span>
+                        <span id="scheduleOff" class="font-bold text-red-600">--:--</span>
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-1 space-y-6">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-full relative">
-                    <h2 class="font-bold text-slate-700 mb-4 text-lg">⚙️ Cấu Hình Hệ Thống</h2>
+            <div class="lg:col-span-2">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Lịch Sử & Thống Kê</h2>
                     
-                    <div id="settingsControls" class="space-y-6">
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <label class="text-sm font-bold text-gray-700 block mb-2">🌊 Cài đặt Bơm (Ngưỡng cạn)</label>
-                            <div class="flex gap-2">
-                                <input type="number" id="thresholdInput" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Nhập mm...">
-                                <button onclick="setThreshold()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-bold shadow-sm">Lưu</button>
-                            </div>
-                            <p class="text-xs text-gray-400 mt-2">*Nếu nước < ngưỡng này, bơm sẽ bật (Auto).</p>
-                        </div>
-
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <label class="text-sm font-bold text-gray-700 block mb-2">💡 Lịch trình Đèn (Bật ➜ Tắt)</label>
-                            <div class="flex items-center gap-2 mb-2">
-                                <span class="text-xs font-bold w-8">ON:</span>
-                                <input type="time" id="lightOn" class="border border-gray-300 rounded-lg px-2 py-2 w-full text-sm">
-                            </div>
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="text-xs font-bold w-8">OFF:</span>
-                                <input type="time" id="lightOff" class="border border-gray-300 rounded-lg px-2 py-2 w-full text-sm">
-                            </div>
-                            <button onclick="setLightSchedule()" class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-bold shadow-sm">Cập nhật Lịch</button>
-                        </div>
-
-                        <div id="adminZone" class="hidden border-t-2 border-dashed border-gray-200 pt-4 mt-4">
-                            <h3 class="text-xs font-bold text-gray-400 uppercase mb-3">Vùng Quản Trị</h3>
-                            <div class="grid grid-cols-2 gap-3">
-                                <button onclick="requestWifiReset()" class="bg-red-100 text-red-600 py-2 rounded-lg text-xs font-bold hover:bg-red-200">
-                                    🔄 Reset WiFi
-                                </button>
-                                <button onclick="document.getElementById('newUserForm').classList.toggle('hidden')" class="bg-green-100 text-green-600 py-2 rounded-lg text-xs font-bold hover:bg-green-200">
-                                    ➕ Thêm User
-                                </button>
-                            </div>
-                            
-                            <div id="newUserForm" class="hidden mt-3 bg-white border p-3 rounded-lg shadow-inner">
-                                <input id="newUser" type="text" placeholder="Username" class="w-full mb-2 p-1 border rounded text-xs">
-                                <input id="newPass" type="text" placeholder="Password" class="w-full mb-2 p-1 border rounded text-xs">
-                                <select id="newRole" class="w-full mb-2 p-1 border rounded text-xs">
-                                    <option value="viewer">Viewer</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                                <button onclick="createUser()" class="w-full bg-green-500 text-white text-xs font-bold py-1 rounded">Xác nhận</button>
-                            </div>
-                        </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-6">
+                        <div class="p-3 bg-blue-50 rounded-lg"><p class="text-sm text-slate-500">Lần Bơm</p><p id="pumpCount" class="font-bold text-lg text-blue-700">--</p></div>
+                        <div class="p-3 bg-amber-50 rounded-lg"><p class="text-sm text-slate-500">Lần Bật Đèn</p><p id="lightCount" class="font-bold text-lg text-amber-700">--</p></div>
+                        <div class="p-3 bg-red-50 rounded-lg"><p class="text-sm text-slate-500">Nhiệt độ TB</p><p id="avgTemp" class="font-bold text-lg text-red-700">-- °C</p></div>
+                        <div class="p-3 bg-teal-50 rounded-lg"><p class="text-sm text-slate-500">Mực nước TB</p><p id="avgWater" class="font-bold text-lg text-teal-700">-- %</p></div>
                     </div>
+
+                    <div class="flex justify-end space-x-2 mb-4">
+                        <select id="history-days" onchange="fetchHistory()" class="p-2 border rounded-lg text-sm">
+                            <option value="1">24 Giờ Qua</option>
+                            <option value="3">3 Ngày Qua</option>
+                            <option value="7">7 Ngày Qua</option>
+                        </select>
+                        <select id="history-type" onchange="fetchHistory()" class="p-2 border rounded-lg text-sm">
+                            <option value="hour">Xem theo Giờ</option>
+                            <option value="day">Xem theo Ngày</option>
+                        </select>
+                    </div>
+
+                    <div class="relative h-96">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+
                 </div>
             </div>
 
-            <div class="lg:col-span-1 space-y-6">
-                <div class="bg-gray-900 text-white p-6 rounded-2xl shadow-lg h-full border border-gray-800 flex flex-col">
-                    <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
-                        <h2 class="font-bold flex items-center gap-2 text-lg">📊 Thống Kê</h2>
-                        <span class="text-xs text-green-400 bg-green-900 px-2 py-1 rounded-full">Live Data</span>
-                    </div>
-                    <div class="flex-1 space-y-6">
-                        <div>
-                            <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">Hôm Nay</h3>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="bg-gray-800 p-3 rounded-lg text-center">
-                                    <p class="text-xs text-gray-400">Bật Bơm</p>
-                                    <p class="text-xl font-bold text-cyan-400"><span id="statPumpDay">0</span> <span class="text-xs text-gray-500">lần</span></p>
-                                </div>
-                                <div class="bg-gray-800 p-3 rounded-lg text-center">
-                                    <p class="text-xs text-gray-400">Bật Đèn</p>
-                                    <p class="text-xl font-bold text-yellow-400"><span id="statLightDay">0</span> <span class="text-xs text-gray-500">lần</span></p>
-                                </div>
-                                <div class="bg-gray-800 p-3 rounded-lg text-center">
-                                    <p class="text-xs text-gray-400">TB Nhiệt độ</p>
-                                    <p class="text-xl font-bold text-blue-400"><span id="statTempDay">--</span>°C</p>
-                                </div>
-                                <div class="bg-gray-800 p-3 rounded-lg text-center">
-                                    <p class="text-xs text-gray-400">TB Mực nước</p>
-                                    <p class="text-xl font-bold text-indigo-400"><span id="statWaterDay">--</span>mm</p>
-                                </div>
-                            </div>
-                        </div>
+        </div>
 
-                        <div class="pt-4 border-t border-gray-800">
-                            <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">Tháng Này</h3>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between border-b border-gray-800 pb-1">
-                                    <span>Tổng lần bật Bơm:</span>
-                                    <span class="font-bold text-cyan-400" id="statPumpMonth">0</span>
-                                </div>
-                                <div class="flex justify-between border-b border-gray-800 pb-1">
-                                    <span>Tổng lần bật Đèn:</span>
-                                    <span class="font-bold text-yellow-400" id="statLightMonth">0</span>
-                                </div>
-                                <div class="flex justify-between border-b border-gray-800 pb-1">
-                                    <span>Nhiệt độ TB:</span>
-                                    <span class="font-bold text-blue-400" id="statTempMonth">--</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span>Mực nước TB:</span>
-                                    <span class="font-bold text-indigo-400" id="statWaterMonth">--</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-6 text-center">
-                        <p class="text-xs text-gray-600 italic">Dữ liệu được cập nhật tự động mỗi 10 phút</p>
-                    </div>
-                </div>
-                <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
-                    <h2 class="font-bold text-slate-700 mb-4 flex items-center gap-2">📅 Tra Cứu Lịch Sử</h2>
-                    
-                    <div class="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg">
-                        <button onclick="switchSearchMode('date')" id="btnModeDate" class="flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition">Theo Ngày</button>
-                        <button onclick="switchSearchMode('month')" id="btnModeMonth" class="flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition">Theo Tháng</button>
-                    </div>
-                
-                    <div class="flex gap-2 mb-4">
-                        <input type="date" id="searchDateInput" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                        <input type="month" id="searchMonthInput" class="hidden flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                        <button onclick="searchData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-sm">Xem</button>
-                    </div>
-                
-                    <div id="searchResult" class="hidden space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="text-center mb-2 border-b border-gray-200 pb-2">
-                            <span class="text-xs font-bold text-gray-400 uppercase">Kết quả cho:</span><br>
-                            <span id="resultLabel" class="font-bold text-slate-800">...</span>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-3 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-500">Bật Bơm:</span>
-                                <span class="font-bold text-cyan-600"><span id="resPump">0</span> lần</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500">Bật Đèn:</span>
-                                <span class="font-bold text-yellow-600"><span id="resLight">0</span> lần</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500">Nhiệt độ TB:</span>
-                                <span class="font-bold text-blue-600"><span id="resTemp">0</span>°C</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-500">Mực nước TB:</span>
-                                <span class="font-bold text-indigo-600"><span id="resWater">0</span>mm</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <p class="text-center text-sm text-slate-400 mt-8">Cập nhật lần cuối: <span id="lastUpdated">--</span></p>
+
+    </main>
+    
+    <div id="registerModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Tạo Người Dùng Mới</h3>
+            <input id="newUsername" type="text" placeholder="Tên đăng nhập" class="w-full p-3 mb-3 border rounded-lg">
+            <input id="newPassword" type="password" placeholder="Mật khẩu" class="w-full p-3 mb-3 border rounded-lg">
+            <select id="newRole" class="w-full p-3 mb-4 border rounded-lg">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+            <div class="flex justify-between space-x-3">
+                <button onclick="toggleRegisterModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-semibold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
+                <button onclick="createUser()" class="w-1/2 bg-blue-600 text-white font-semibold p-3 rounded-lg hover:bg-blue-700 transition duration-150">Tạo</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="configModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Cài Đặt Hệ Thống (Admin)</h3>
+            
+            <label for="thresholdInput" class="block text-sm font-medium text-slate-700 mb-1">Ngưỡng Mực Nước Bật Bơm (%)</label>
+            <input id="thresholdInput" type="number" min="1" max="100" placeholder="Ví dụ: 80" class="w-full p-3 mb-4 border rounded-lg">
+            <p class="text-xs text-slate-500 mb-4">Máy bơm sẽ tự động bật khi mực nước dưới ngưỡng này (Chế độ Auto).</p>
+            
+            <label class="block text-sm font-medium text-slate-700 mb-1">Lịch Bật/Tắt Đèn (HH:MM)</label>
+            <div class="flex space-x-3 mb-4">
+                <input id="lightOnTime" type="time" class="w-full p-3 border rounded-lg" title="Thời gian BẬT đèn">
+                <input id="lightOffTime" type="time" class="w-full p-3 border rounded-lg" title="Thời gian TẮT đèn">
             </div>
 
+            <div class="flex justify-between space-x-3">
+                <button onclick="toggleConfigModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-semibold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
+                <button onclick="updateConfig()" class="w-1/2 bg-green-600 text-white font-semibold p-3 rounded-lg hover:bg-green-700 transition duration-150">Lưu Cấu Hình</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- AUTH & VARIABLES ---
-        let TOKEN = localStorage.getItem('token');
-        let ROLE = localStorage.getItem('role');
-        let USERNAME = localStorage.getItem('username');
+        const API_BASE = window.location.origin;
+        let TOKEN = localStorage.getItem('jwtToken') || null;
+        let USER_ROLE = localStorage.getItem('userRole') || 'guest';
+        let chartInstance = null;
+        let fetchInterval;
+        let currentState = {}; // Lưu trữ trạng thái hiện tại từ DB
 
+        // ==================== A. AUTHENTICATION ====================
         function checkAuth() {
             if (!TOKEN) {
-                document.getElementById('loginModal').classList.remove('hidden', 'opacity-0', 'pointer-events-none');
-                document.getElementById('mainContent').classList.add('filter', 'blur-sm', 'pointer-events-none');
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
             } else {
-                document.getElementById('loginModal').classList.add('hidden', 'opacity-0', 'pointer-events-none');
-                document.getElementById('mainContent').classList.remove('filter', 'blur-sm', 'pointer-events-none');
-                
-                document.getElementById('userDisplay').innerText = USERNAME;
-                document.getElementById('roleDisplay').innerText = ROLE;
-                
-                if (ROLE !== 'admin') {
-                    document.getElementById('adminZone').classList.add('hidden');
-                    document.getElementById('blockClickOverlay').classList.remove('hidden');
-                    document.getElementById('settingsControls').style.pointerEvents = 'none';
-                    document.getElementById('settingsControls').style.opacity = '0.6';
+                document.getElementById('loginModal').classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                // Hiển thị nút Admin nếu role là admin
+                if (USER_ROLE === 'admin') {
+                    document.getElementById('admin-controls').classList.remove('hidden');
                 } else {
-                    document.getElementById('adminZone').classList.remove('hidden');
-                    document.getElementById('blockClickOverlay').classList.add('hidden');
-                    document.getElementById('settingsControls').style.pointerEvents = 'auto';
-                    document.getElementById('settingsControls').style.opacity = '1';
+                    document.getElementById('admin-controls').classList.add('hidden');
                 }
-                fetchState();
-                fetchStats(); // Lấy thống kê
+                startFetchingData();
             }
         }
 
         async function login() {
-            const u = document.getElementById('username').value;
-            const p = document.getElementById('password').value;
-            const errEl = document.getElementById('loginError');
-            if(!u || !p) { errEl.innerText = "Nhập thiếu thông tin"; errEl.classList.remove('hidden'); return; }
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
 
             try {
-                const res = await fetch('/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
+                const res = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
                 const data = await res.json();
+
                 if (data.success) {
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('role', data.role);
-                    localStorage.setItem('username', data.username);
-                    TOKEN = data.token; ROLE = data.role; USERNAME = data.username;
-                    errEl.classList.add('hidden');
+                    TOKEN = data.token;
+                    USER_ROLE = data.role;
+                    localStorage.setItem('jwtToken', TOKEN);
+                    localStorage.setItem('userRole', USER_ROLE);
                     checkAuth();
-                } else { errEl.innerText = data.error; errEl.classList.remove('hidden'); }
-            } catch(e) { errEl.innerText = "Lỗi Server"; errEl.classList.remove('hidden'); }
-        }
-
-        function logout() { localStorage.clear(); location.reload(); }
-
-        // --- API HELPER ---
-        async function apiCall(endpoint, body) {
-            const res = await fetch(endpoint, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN }, body: JSON.stringify(body)
-            });
-            if(res.status === 403) { alert("⛔ Không có quyền Admin!"); return null; }
-            const data = await res.json();
-            if(!data.success) alert("❌ Lỗi: " + data.error);
-            return data;
-        }
-
-        // --- CONTROL ---
-        async function toggleDevice(key) {
-            if(ROLE !== 'admin') return; 
-            
-            const res = await fetch('/state');
-            const state = await res.json();
-
-            // --- ĐOẠN MỚI: CHẶN CLICK NẾU ĐANG AUTO ---
-            if (state.autoMode === 1 && key !== 'autoMode') {
-                alert("⚠️ Hệ thống đang chạy tự động (Auto Mode).\nVui lòng tắt Auto Mode trước khi điều khiển thủ công!");
-                return;
-            }
-            // ------------------------------------------
-
-            const current = state[key] || 0;
-            await apiCall('/update', { [key]: current ? 0 : 1 });
-            fetchState(); 
-        }
-        async function setThreshold() { 
-            apiCall('/update', { threshold: parseInt(document.getElementById('thresholdInput').value) }); 
-            alert("Đã lưu ngưỡng!"); fetchState();
-        }
-        async function setLightSchedule() { 
-            apiCall('/update', { lightSchedule: { on: document.getElementById('lightOn').value, off: document.getElementById('lightOff').value } });
-            alert("Đã lưu lịch!"); fetchState();
-        }
-        async function requestWifiReset() { 
-            if(confirm("⚠️ Reset WiFi?")) {
-                const res = await apiCall('/reset-wifi', {});
-                if(res && res.success) alert("✅ Lệnh Reset đã gửi!");
-            }
-        }
-        async function createUser() {
-            const u = document.getElementById('newUser').value;
-            const p = document.getElementById('newPass').value;
-            const r = document.getElementById('newRole').value;
-            if(!u || !p) return alert("Thiếu thông tin");
-            const data = await apiCall('/register', { newUsername: u, newPassword: p, newRole: r });
-            if(data && data.success) { alert(data.message); }
-        }
-
-        // --- DISPLAY & MONITOR ---
-        // --- DISPLAY FUNCTIONS ---
-        async function fetchState() {
-            if(!TOKEN) return;
-            try {
-                const res = await fetch('/state');
-                const data = await res.json();
-                
-                // Kiểm tra xem có đang Auto không
-                const isAuto = data.autoMode === 1;
-
-                // Cập nhật nút Auto
-                updateButton('btnAuto', data.autoMode, '🤖 Tự Động: BẬT', '🤖 Tự Động: TẮT', false);
-                
-                // Cập nhật nút Bơm & Đèn (Truyền thêm tham số isAuto để khóa nút)
-                updateButton('btnPump', data.pump, 
-                    isAuto ? '🌊 Bơm (Đang Auto)' : '🌊 Máy Bơm: ĐANG CHẠY', 
-                    isAuto ? '🌊 Bơm (Đang Auto)' : '🌊 Máy Bơm: ĐANG TẮT', 
-                    isAuto
-                );
-                
-                updateButton('btnLight', data.light, 
-                    isAuto ? '💡 Đèn (Đang Auto)' : '💡 Đèn LED: ĐANG SÁNG', 
-                    isAuto ? '💡 Đèn (Đang Auto)' : '💡 Đèn LED: ĐANG TẮT', 
-                    isAuto
-                );
-
-                document.getElementById('temperature').innerText = data.temperature;
-                document.getElementById('waterLevel').innerText = data.waterLevel;
-                
-                // WiFi Info
-                const wifiEl = document.getElementById('wifiName');
-                wifiEl.innerText = data.wifiSSID;
-                if(data.wifiSSID === 'Disconnect' || data.wifiSSID === 'Reseting...') {
-                    wifiEl.className = 'font-bold text-right text-red-500 blink';
                 } else {
-                    wifiEl.className = 'font-bold text-right text-green-600';
+                    alert(data.error);
                 }
-                document.getElementById('wifiIP').innerText = data.ip;
-                document.getElementById('wifiSignal').innerText = data.rssi + " dBm";
-                
-                if(document.activeElement.id !== 'thresholdInput') document.getElementById('thresholdInput').placeholder = data.threshold;
-
-            } catch(e) {}
-        }
-
-        // Cập nhật hàm updateButton để hỗ trợ khóa nút (disabled)
-        function updateButton(id, state, txtOn, txtOff, isDisabled) {
-            const btn = document.getElementById(id);
-            
-            // Nếu bị khóa (do Auto Mode)
-            if (isDisabled) {
-                btn.innerText = state ? txtOn : txtOff; // Giữ nguyên trạng thái hiển thị
-                btn.className = "w-full py-4 rounded-xl font-bold text-gray-500 shadow-none bg-gray-200 cursor-not-allowed border border-gray-300";
-                btn.disabled = true; // Khóa chức năng click
-                return;
-            }
-
-            // Nếu bình thường
-            btn.disabled = false;
-            if(state) {
-                btn.innerText = txtOn;
-                btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-green-500 hover:bg-green-600 transition-all active:scale-95";
-            } else {
-                btn.innerText = txtOff;
-                btn.className = "w-full py-4 rounded-xl font-bold text-white shadow-md bg-gray-400 hover:bg-gray-500 transition-all active:scale-95";
+            } catch (e) {
+                alert("Lỗi kết nối Server.");
             }
         }
 
-        // --- FETCH STATISTICS ---
-        async function fetchStats() {
-            if(!TOKEN) return;
+        function logout() {
+            TOKEN = null;
+            USER_ROLE = 'guest';
+            localStorage.removeItem('jwtToken');
+            localStorage.removeItem('userRole');
+            clearInterval(fetchInterval);
+            checkAuth();
+        }
+
+        // ==================== B. DATA FETCHING & DISPLAY ====================
+        async function fetchState() {
+            if (!TOKEN) return;
             try {
-                const res = await fetch('/stats');
+                const res = await fetch(`${API_BASE}/state`, {
+                    headers: { 'Authorization': TOKEN }
+                });
+                const data = await res.json();
+                currentState = data; // Lưu trạng thái hiện tại
+
+                // 1. Cập nhật trạng thái thiết bị
+                updateButtonState('autoMode', data.autoMode, 'btnAutoMode', 'autoModeState', 'TỰ ĐỘNG', 'TẮT');
+                updateButtonState('pump', data.pump, 'btnPump', 'pumpState', 'BẬT', 'TẮT');
+                updateButtonState('light', data.light, 'btnLight', 'lightState', 'BẬT', 'TẮT');
+
+                // 2. Cập nhật giá trị cảm biến
+                document.getElementById('temperature').textContent = `${data.temperature.toFixed(1)} °C`;
+                document.getElementById('waterLevel').textContent = `${data.waterLevel}%`;
+                document.getElementById('currentThreshold').textContent = data.threshold || '--';
+                
+                // 3. Cập nhật Phát hiện Cá
+                const fishIcon = document.getElementById('fishIcon');
+                const fishText = document.getElementById('fishDetected');
+                if (data.fishDetected) {
+                    fishIcon.className = "p-3 bg-green-100 rounded-full text-green-600 text-2xl blink";
+                    fishText.className = "text-3xl font-bold text-green-600 blink";
+                    fishText.textContent = "CÓ CÁ";
+                } else {
+                    fishIcon.className = "p-3 bg-gray-200 rounded-full text-gray-500 text-2xl";
+                    fishText.className = "text-3xl font-bold text-gray-500";
+                    fishText.textContent = "Không";
+                }
+                
+                // 4. Cập nhật Thông tin Mạng (MỚI)
+                document.getElementById('wifiSSID').textContent = data.wifiSSID || 'N/A';
+                document.getElementById('ip').textContent = data.ip || '0.0.0.0';
+                document.getElementById('rssi').textContent = `${data.rssi || 0} dBm`;
+
+                // 5. Cập nhật Lịch Đèn & Thời gian cuối
+                document.getElementById('scheduleOn').textContent = data.lightSchedule?.on || '--:--';
+                document.getElementById('scheduleOff').textContent = data.lightSchedule?.off || '--:--';
+                document.getElementById('lastUpdated').textContent = new Date(data.lastUpdated).toLocaleTimeString('vi-VN', { 
+                    year: 'numeric', month: 'numeric', day: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                });
+
+            } catch (e) {
+                console.error("Lỗi khi fetch state:", e);
+                // Nếu lỗi do token, yêu cầu đăng nhập lại
+                if (e instanceof TypeError) logout(); 
+            }
+        }
+
+        async function fetchHistory() {
+            if (!TOKEN) return;
+            try {
+                const days = document.getElementById('history-days').value;
+                const type = document.getElementById('history-type').value;
+
+                const res = await fetch(`${API_BASE}/history?days=${days}&type=${type}`, {
+                    headers: { 'Authorization': TOKEN }
+                });
+                const data = await res.json();
+
+                // 1. Cập nhật Thống kê
+                document.getElementById('pumpCount').textContent = data.summary.pump;
+                document.getElementById('lightCount').textContent = data.summary.light;
+                document.getElementById('avgTemp').textContent = `${data.summary.temp} °C`;
+                document.getElementById('avgWater').textContent = `${data.summary.water} %`;
+
+                // 2. Cập nhật Biểu đồ
+                updateChart(data.chartData, type);
+
+            } catch (e) {
+                console.error("Lỗi khi fetch history:", e);
+            }
+        }
+        
+        function updateChart(data, type) {
+            const labels = data.map(d => d.label);
+            const tempValues = data.map(d => d.temperature);
+            const waterValues = data.map(d => d.waterLevel);
+            
+            if (chartInstance) chartInstance.destroy();
+
+            const ctx = document.getElementById('historyChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Nhiệt độ (°C)',
+                            data: tempValues,
+                            borderColor: 'rgb(239, 68, 68)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Mực nước (%)',
+                            data: waterValues,
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            yAxisID: 'y2',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: type === 'hour' ? 'Giờ' : 'Ngày' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Nhiệt độ (°C)' },
+                            grid: { drawOnChartArea: false }
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Mực nước (%)' },
+                            max: 100,
+                            min: 0,
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+
+
+        function startFetchingData() {
+            fetchState();
+            fetchHistory();
+            clearInterval(fetchInterval); 
+            fetchInterval = setInterval(() => {
+                fetchState();
+                // Chỉ fetch history ít hơn để tiết kiệm tài nguyên
+                if (Math.floor(Date.now() / 1000) % 60 === 0) fetchHistory();
+            }, 2000); 
+        }
+
+        function updateButtonState(key, state, btnId, textId, textOn, textOff) {
+            const button = document.getElementById(btnId);
+            const text = document.getElementById(textId);
+
+            if (state === 1) {
+                button.classList.remove('bg-gray-200');
+                button.classList.add('bg-white');
+                text.textContent = textOn;
+                text.classList.remove('bg-gray-500', 'bg-red-500', 'bg-yellow-500');
+                if (key === 'autoMode') text.classList.add('bg-blue-600');
+                else if (key === 'pump') text.classList.add('bg-green-600');
+                else if (key === 'light') text.classList.add('bg-yellow-600');
+            } else {
+                button.classList.remove('bg-white');
+                button.classList.add('bg-gray-200');
+                text.textContent = textOff;
+                text.classList.remove('bg-blue-600', 'bg-green-600', 'bg-yellow-600');
+                text.classList.add('bg-gray-500');
+            }
+        }
+
+        // ==================== C. CONTROLS ====================
+        async function control(key) {
+            if (!TOKEN) return alert("Vui lòng đăng nhập trước.");
+            
+            // Tính toán giá trị mới
+            const currentStateValue = currentState[key];
+            const newValue = 1 - currentStateValue; // Đảo trạng thái (1 -> 0, 0 -> 1)
+            
+            // Nếu muốn tắt/bật Bơm hoặc Đèn khi đang ở chế độ Tự động thì phải tắt Auto trước
+            if (currentState.autoMode === 1 && (key === 'pump' || key === 'light')) {
+                return alert("Vui lòng TẮT Chế độ Tự động trước khi điều khiển thủ công Bơm hoặc Đèn.");
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/control`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': TOKEN
+                    },
+                    body: JSON.stringify({ key: key, value: newValue })
+                });
+                if (res.ok) {
+                    // Tạm thời cập nhật UI chờ feedback từ MQTT
+                    currentState[key] = newValue;
+                    updateButtonState(key, newValue, `btn${key.charAt(0).toUpperCase() + key.slice(1)}`, `${key}State`, newValue === 1 ? 'BẬT' : 'TẮT', 'TẮT');
+                } else {
+                    alert("Lỗi khi gửi lệnh điều khiển. Vui lòng thử lại.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Lỗi kết nối Server.");
+            }
+        }
+        
+        // ==================== D. ADMIN LOGIC ====================
+        // Tạo User
+        function toggleRegisterModal(show) {
+            if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
+            const modal = document.getElementById('registerModal');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        async function createUser() {
+            const u = document.getElementById('newUsername').value;
+            const p = document.getElementById('newPassword').value;
+            const r = document.getElementById('newRole').value;
+
+            if (!u || !p) return alert("Vui lòng nhập đủ thông tin!");
+
+            try {
+                const res = await fetch(`${API_BASE}/register`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': TOKEN
+                    },
+                    body: JSON.stringify({ username: u, password: p, role: r })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    toggleRegisterModal(false);
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newPassword').value = '';
+                } else {
+                    alert(data.error);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Lỗi kết nối!");
+            }
+        }
+        
+        // Cấu hình Ngưỡng & Lịch Đèn (MỚI)
+        function toggleConfigModal(show) {
+            if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
+            const modal = document.getElementById('configModal');
+            if (show) {
+                // Tải dữ liệu hiện tại vào form khi mở modal
+                document.getElementById('thresholdInput').value = currentState.threshold;
+                document.getElementById('lightOnTime').value = currentState.lightSchedule?.on || '07:00';
+                document.getElementById('lightOffTime').value = currentState.lightSchedule?.off || '21:00';
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+        
+        async function updateConfig() {
+            const threshold = parseInt(document.getElementById('thresholdInput').value);
+            const lightOn = document.getElementById('lightOnTime').value;
+            const lightOff = document.getElementById('lightOffTime').value;
+            
+            if (isNaN(threshold) || threshold < 1 || threshold > 100) return alert("Ngưỡng nước phải là số từ 1 đến 100.");
+            if (!lightOn || !lightOff) return alert("Vui lòng chọn cả thời gian Bật và Tắt đèn.");
+
+            try {
+                const res = await fetch(`${API_BASE}/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': TOKEN
+                    },
+                    body: JSON.stringify({ 
+                        threshold: threshold,
+                        lightSchedule: { on: lightOn, off: lightOff }
+                    })
+                });
                 const data = await res.json();
                 
-                // Ngày
-                document.getElementById('statPumpDay').innerText = data.day.pump;
-                document.getElementById('statLightDay').innerText = data.day.light;
-                document.getElementById('statTempDay').innerText = data.day.temp;
-                document.getElementById('statWaterDay').innerText = data.day.water;
-
-                // Tháng
-                document.getElementById('statPumpMonth').innerText = data.month.pump + " lần";
-                document.getElementById('statLightMonth').innerText = data.month.light + " lần";
-                document.getElementById('statTempMonth').innerText = data.month.temp + " °C";
-                document.getElementById('statWaterMonth').innerText = data.month.water + " mm";
-
-            } catch(e) {}
+                if (res.ok) {
+                    alert("Lưu cấu hình thành công!");
+                    toggleConfigModal(false);
+                    fetchState(); // Cập nhật lại UI ngay lập tức
+                } else {
+                    alert(`Lỗi: ${data.error || 'Không thể lưu cấu hình.'}`);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Lỗi kết nối Server.");
+            }
         }
-        // --- INIT ---
-        checkAuth();
-        setInterval(() => { if(TOKEN) fetchState(); }, 1000);
-        setInterval(() => { if(TOKEN) fetchStats(); }, 10000); // Cập nhật thống kê chậm hơn (10s)
 
-        // --- SEARCH HISTORY LOGIC ---
-let searchMode = 'date'; // Mặc định là tìm theo ngày
-
-function switchSearchMode(mode) {
-    searchMode = mode;
-    const dateInput = document.getElementById('searchDateInput');
-    const monthInput = document.getElementById('searchMonthInput');
-    const btnDate = document.getElementById('btnModeDate');
-    const btnMonth = document.getElementById('btnModeMonth');
-
-    if (mode === 'date') {
-        dateInput.classList.remove('hidden');
-        monthInput.classList.add('hidden');
-        btnDate.className = "flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition";
-        btnMonth.className = "flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition";
-    } else {
-        dateInput.classList.add('hidden');
-        monthInput.classList.remove('hidden');
-        btnMonth.className = "flex-1 py-1 rounded-md text-sm font-bold bg-white shadow text-blue-600 transition";
-        btnDate.className = "flex-1 py-1 rounded-md text-sm font-bold text-gray-500 hover:bg-gray-200 transition";
-    }
-}
-
-async function searchData() {
-    if (!TOKEN) return alert("Vui lòng đăng nhập!");
+        // ==================== E. INITIALIZATION ====================
+        window.onload = checkAuth;
+    </script>
+    <div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <h3 class="text-red-600 font-bold mb-2">⚠️ Vùng Nguy Hiểm</h3>
+        <p class="text-sm text-gray-600 mb-2">Dùng khi bạn muốn đổi mạng WiFi khác cho thiết bị.</p>
+        <button onclick="remoteReset()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow">
+            <i class="fa-solid fa-eraser"></i> Xóa WiFi & Reset Thiết Bị
+        </button>
+    </div>
     
-    // Lấy giá trị input
-    const val = searchMode === 'date' 
-        ? document.getElementById('searchDateInput').value 
-        : document.getElementById('searchMonthInput').value;
-
-    if (!val) return alert("Vui lòng chọn thời gian!");
-
-    try {
-        const res = await fetch('/search-history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
-            body: JSON.stringify({ type: searchMode, value: val })
-        });
-        
-        const data = await res.json();
-        
-        if (data.success) {
-            document.getElementById('searchResult').classList.remove('hidden');
-            document.getElementById('resultLabel').innerText = val;
+    <script>
+        // Hàm gửi lệnh Reset
+        async function remoteReset() {
+            if (!confirm("CẢNH BÁO: Thiết bị sẽ quên mạng WiFi hiện tại và mất kết nối.\n\nBạn có chắc chắn không?")) return;
             
-            document.getElementById('resPump').innerText = data.pump;
-            document.getElementById('resLight').innerText = data.light;
-            document.getElementById('resTemp').innerText = data.temp;
-            document.getElementById('resWater').innerText = data.water;
-        } else {
-            alert("Lỗi: " + data.error);
+            try {
+                const res = await fetch(`${API_BASE}/reset-wifi`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert("Đã gửi lệnh! Thiết bị sẽ khởi động lại và phát ra WiFi AquaConfig.");
+                } else {
+                    alert("Lỗi: " + data.error);
+                }
+            } catch (e) {
+                alert("Lỗi kết nối tới Server");
+            }
         }
-    } catch (e) {
-        alert("Lỗi kết nối server");
-    }
-}
     </script>
 </body>
 </html>
