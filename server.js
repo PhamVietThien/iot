@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
 // ==================== 1. KẾT NỐI MONGODB & SCHEMAS ====================
-const mongoURI = process.env.MONGO_URI || "mongodb+srv://iot:FH29y9hfgRDpol2B@iot-cluster.hbgvh83.mongodb.net/?appName=iot-cluster";
+const mongoURI = "mongodb+srv://iot:FH29y9hfgRDpol2B@iot-cluster.hbgvh83.mongodb.net/?appName=iot-cluster";
 
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ MongoDB Connected"))
@@ -316,81 +316,87 @@ app.post("/config", requireStrictAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-
+// API Tra cứu Lịch sử (Theo ngày)
 // API Tra cứu Lịch sử (Theo ngày)
 app.get("/history", requireAdmin, async (req, res) => {
-    try {
-        const days = parseInt(req.query.days) || 1; 
-        const type = req.query.type || 'hour';
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - (days - 1));
-        startDate.setHours(0, 0, 0, 0);
+  try {
+      const singleDate = req.query.singleDate; // Lấy ngày truy vấn (YYYY-MM-DD)
+      
+      let startDate;
+      let endDate = new Date();
 
-        // 1. Lấy dữ liệu thô
-        let rawData = await History.find({ timestamp: { $gte: startDate, $lte: endDate } }).sort({ timestamp: 1 });
+      if (singleDate) {
+          // Trường hợp truy vấn 1 ngày cụ thể
+          const dateParts = singleDate.split('-');
+          const year = parseInt(dateParts[0]);
+          const month = parseInt(dateParts[1]) - 1; // Tháng 0-indexed
+          const day = parseInt(dateParts[2]);
 
-        // 2. Xử lý dữ liệu (Gom nhóm theo giờ/ngày)
-        let chartData = [];
-        let summary = { pump: 0, light: 0, tempSum: 0, waterSum: 0, count: 0 };
-        let groupingMap = new Map();
+          // Bắt đầu ngày (00:00:00.000)
+          startDate = new Date(year, month, day, 0, 0, 0, 0);
+          
+          // Kết thúc ngày (23:59:59.999)
+          endDate = new Date(year, month, day, 23, 59, 59, 999);
+      } else {
+          // Trường hợp mặc định (fallback): Ngày hôm nay
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(23, 59, 59, 999);
+      }
 
-        // Lấy thống kê log
-        const countPump = await Log.countDocuments({ key: "pump", value: 1, timestamp: { $gte: startDate } });
-        const countLight = await Log.countDocuments({ key: "light", value: 1, timestamp: { $gte: startDate } });
-        summary.pump = countPump;
-        summary.light = countLight;
+      // ===============================================
+      // 1. Lấy LOG CHI TIẾT (Các lần BẬT ra)
+      // ===============================================
+      const logDateCondition = { timestamp: { $gte: startDate, $lte: endDate } };
+      const logOnCondition = { value: 1, ...logDateCondition };
+      
+      // Lấy chi tiết các sự kiện Bơm BẬT
+      const pumpLogs = await Log.find({ ...logOnCondition, key: "pump" }).sort({ timestamp: -1 });
 
-        rawData.forEach(record => {
-            const date = new Date(record.timestamp);
-            let key;
-            if (type === 'hour') {
-                // Nhóm theo ngày và giờ (vd: 12-25 14:00)
-                key = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:00`;
-            } else { 
-                // Nhóm theo ngày (vd: 12-25)
-                key = `${date.getMonth() + 1}-${date.getDate()}`;
-            }
+      // Lấy chi tiết các sự kiện Đèn BẬT
+      const lightLogs = await Log.find({ ...logOnCondition, key: "light" }).sort({ timestamp: -1 });
 
-            if (!groupingMap.has(key)) {
-                groupingMap.set(key, { tempSum: 0, waterSum: 0, count: 0 });
-            }
+      // Lấy chi tiết các sự kiện AutoMode BẬT/TẮT (value: 0 hoặc 1)
+      const autoModeLogs = await Log.find({ ...logDateCondition, key: "autoMode" }).sort({ timestamp: -1 });
 
-            const group = groupingMap.get(key);
-            group.tempSum += record.temperature;
-            group.waterSum += record.waterLevel;
-            group.count += 1;
-            
-            summary.tempSum += record.temperature;
-            summary.waterSum += record.waterLevel;
-            summary.count += 1;
-        });
 
-        // Tạo dữ liệu cho biểu đồ
-        groupingMap.forEach((group, label) => {
-            chartData.push({
-                label: label,
-                temperature: Math.round(group.tempSum / group.count * 10) / 10,
-                waterLevel: Math.round(group.waterSum / group.count * 10) / 10,
-            });
-        });
+      // ===============================================
+      // 2. Lấy dữ liệu cảm biến thô và tính trung bình
+      // ===============================================
+      let rawData = await History.find({ timestamp: { $gte: startDate, $lte: endDate } }).sort({ timestamp: 1 });
 
-        // Tính trung bình tổng
-        const totalAvgTemp = summary.count > 0 ? Math.round(summary.tempSum / summary.count * 10) / 10 : 0;
-        const totalAvgWater = summary.count > 0 ? Math.round(summary.waterSum / summary.count * 10) / 10 : 0;
+      let summary = { pump: 0, light: 0, tempSum: 0, waterSum: 0, count: 0 };
+      // ... (groupingMap không cần thiết vì ta không dùng chartData nữa) ...
 
-        res.json({
-            success: true,
-            summary: {
-                temp: totalAvgTemp,
-                water: totalAvgWater,
-                pump: summary.pump,
-                light: summary.light
-            },
-            chartData: chartData.reverse() // Hiển thị từ cũ đến mới
-        });
+      // Sử dụng số lượng logs đã fetch để có summary chính xác
+      summary.pump = pumpLogs.length;
+      summary.light = lightLogs.length;
 
-    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+      rawData.forEach(record => {
+          summary.tempSum += record.temperature;
+          summary.waterSum += record.waterLevel;
+          summary.count += 1;
+      });
+
+      // Tính trung bình tổng
+      const totalAvgTemp = summary.count > 0 ? Math.round(summary.tempSum / summary.count * 10) / 10 : 0;
+      const totalAvgWater = summary.count > 0 ? Math.round(summary.waterSum / summary.count * 10) / 10 : 0;
+
+      res.json({
+          success: true,
+          summary: {
+              temp: totalAvgTemp,
+              water: totalAvgWater,
+              pump: summary.pump,
+              light: summary.light
+          },
+          // Trả về log chi tiết cho frontend
+          pumpLogs: pumpLogs.map(log => ({ timestamp: log.timestamp, source: log.source })),
+          lightLogs: lightLogs.map(log => ({ timestamp: log.timestamp, source: log.source })),
+          autoModeLogs: autoModeLogs.map(log => ({ timestamp: log.timestamp, source: log.source, value: log.value })),
+      });
+
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 
@@ -436,7 +442,7 @@ setInterval(async () => {
   } catch (e) { console.error("Auto loop error:", e); }
 }, 5000); // Check mỗi 5 giây
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 // API để Reset Wifi thiết bị từ xa
 app.post('/reset-wifi', async (req, res) => {
   try {
