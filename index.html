@@ -174,6 +174,33 @@
 
         </div>
 
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div id="otaPanel" class="p-4 bg-blue-50 border border-blue-200 rounded-lg hidden">
+                <h3 class="text-blue-600 font-bold mb-2">📡 Quản Lý Kết Nối</h3>
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <span class="text-sm text-gray-600">
+                        IP: <span id="otaIpDisplay" class="font-mono font-bold text-slate-800">...</span>
+                    </span>
+                    <div class="flex items-center space-x-2">
+                        <a id="otaLink" href="#" target="_blank" class="text-blue-600 underline text-xs mr-2 hover:text-blue-800">^=^</a>
+                        
+                        <button onclick="toggleWifiModal(true)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow text-sm transition duration-150">
+                            <i class="fas fa-sync-alt mr-1"></i> Đổi WiFi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h3 class="text-red-600 font-bold mb-2">⚠️ Vùng Nguy Hiểm</h3>
+                <p class="text-sm text-gray-600 mb-2">Dùng khi bạn muốn đổi mạng WiFi khác cho thiết bị.</p>
+                <button onclick="remoteReset()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow">
+                    <i class="fa-solid fa-eraser"></i> Xóa WiFi & Reset Thiết Bị
+                </button>
+            </div>
+        </div>
+
         <p class="text-center text-sm text-slate-400 mt-8">Cập nhật lần cuối: <span id="lastUpdated">--</span></p>
 
     </main>
@@ -215,12 +242,34 @@
         </div>
     </div>
 
+    <div id="wifiModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4 text-blue-600 border-b pb-2">
+                <i class="fas fa-wifi mr-2"></i>Cập Nhật WiFi Mới
+            </h3>
+            <p class="text-sm text-gray-500 mb-4">ESP sẽ lưu mạng mới và khởi động lại. Nếu sai mật khẩu, thiết bị sẽ quay về chế độ phát WiFi (Pha 1).</p>
+            
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tên WiFi (SSID)</label>
+            <input id="newWifiSSID" type="text" placeholder="Nhập tên WiFi..." class="w-full p-3 mb-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            
+            <label class="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
+            <input id="newWifiPass" type="text" placeholder="Nhập mật khẩu..." class="w-full p-3 mb-6 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            
+            <div class="flex justify-between space-x-3">
+                <button onclick="toggleWifiModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-bold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
+                <button onclick="sendWifiUpdate()" class="w-1/2 bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition duration-150">
+                    <i class="fas fa-save mr-1"></i> Cập Nhật
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = window.location.origin;
         let TOKEN = localStorage.getItem('jwtToken') || null;
         let USER_ROLE = localStorage.getItem('userRole') || 'guest';
         let fetchInterval;
-        let currentState = {}; // Lưu trữ trạng thái hiện tại từ DB
+        let currentState = {}; 
 
         // ==================== A. AUTHENTICATION ====================
         function checkAuth() {
@@ -230,7 +279,6 @@
             } else {
                 document.getElementById('loginModal').classList.add('hidden');
                 document.body.classList.remove('overflow-hidden');
-                // Hiển thị nút Admin nếu role là admin
                 if (USER_ROLE === 'admin') {
                     document.getElementById('admin-controls').classList.remove('hidden');
                 } else {
@@ -283,7 +331,7 @@
                     headers: { 'Authorization': TOKEN }
                 });
                 const data = await res.json();
-                currentState = data; // Lưu trạng thái hiện tại
+                currentState = data; 
 
                 // 1. Cập nhật trạng thái thiết bị
                 updateButtonState('autoMode', data.autoMode, 'btnAutoMode', 'autoModeState', 'TỰ ĐỘNG', 'TẮT');
@@ -313,7 +361,21 @@
                 document.getElementById('ip').textContent = data.ip || '0.0.0.0';
                 document.getElementById('rssi').textContent = `${data.rssi || 0} dBm`;
 
-                // 5. Cập nhật Lịch Đèn & Thời gian cuối
+                // === [UPDATED] LOGIC HIỆN PANEL QUẢN LÝ KẾT NỐI ===
+                const otaPanel = document.getElementById('otaPanel');
+                const otaLink = document.getElementById('otaLink');
+                const otaIpDisplay = document.getElementById('otaIpDisplay');
+
+                if (data.ip && data.ip !== "0.0.0.0" && data.ip !== "") {
+                    otaPanel.classList.remove('hidden');
+                    otaIpDisplay.textContent = data.ip;
+                    otaLink.href = `http://${data.ip}/update`; 
+                } else {
+                    otaPanel.classList.add('hidden');
+                }
+                // ====================================================
+
+                // 5. Cập nhật Lịch & Time
                 document.getElementById('scheduleOn').textContent = data.lightSchedule?.on || '--:--';
                 document.getElementById('scheduleOff').textContent = data.lightSchedule?.off || '--:--';
                 document.getElementById('lastUpdated').textContent = new Date(data.lastUpdated).toLocaleTimeString('vi-VN', { 
@@ -323,12 +385,10 @@
 
             } catch (e) {
                 console.error("Lỗi khi fetch state:", e);
-                // Nếu lỗi do token, yêu cầu đăng nhập lại
                 if (e instanceof TypeError) logout(); 
             }
         }
 
-        // Helper function để lấy ngày hôm nay dưới dạng YYYY-MM-DD
         function getTodayDateString() {
             const today = new Date();
             const yyyy = today.getFullYear();
@@ -337,50 +397,39 @@
             return `${yyyy}-${mm}-${dd}`;
         }
         
-        // Thiết lập ngày mặc định là ngày hôm nay và kích hoạt fetchHistory
         function setDefaultDate() {
             const dateInput = document.getElementById('history-date');
             dateInput.value = getTodayDateString();
             fetchHistory();
         }
 
-        /**
-         * Render chi tiết log
-         * @param {string} ulId ID của thẻ <ul>
-         * @param {Array<object>} logs Danh sách log (chứa đối tượng có trường timestamp, source, và value nếu là autoMode)
-         * @param {string} logType Loại log (để hiển thị tin nhắn mặc định)
-         */
         function renderLogDetails(ulId, logs, logType) {
             const ul = document.getElementById(ulId);
-            ul.innerHTML = ''; // Xóa nội dung cũ
+            ul.innerHTML = ''; 
 
             if (!logs || logs.length === 0) {
                 ul.innerHTML = `<li class="text-gray-500 p-1">Không có sự kiện ${logType} nào trong ngày này.</li>`;
                 return;
             }
 
-            // Xử lý và hiển thị log
             logs.forEach(log => {
                 const timestamp = new Date(log.timestamp || log);
                 const timeString = timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 
                 let sourceText = 'Thủ công';
-                let actionText = ''; // Chỉ dùng cho autoMode
+                let actionText = ''; 
 
                 if (log.source === 'auto_schedule') sourceText = 'Tự động (Lịch)';
                 else if (log.source === 'auto_water_level') sourceText = 'Tự động (Mực nước)';
                 else if (log.source === 'manual') sourceText = 'Thủ công';
                 else if (log.source) sourceText = log.source;
 
-                // Xử lý riêng cho log autoMode (có thêm trường 'value')
                 if (ulId === 'autoModeLogList') {
                     actionText = log.value === 1 ? '<span class="text-white bg-blue-600 px-2 rounded">BẬT</span>' : '<span class="text-white bg-gray-500 px-2 rounded">TẮT</span>';
                 }
 
                 const li = document.createElement('li');
                 li.className = 'flex justify-between items-center text-slate-700 p-1 border-b border-dashed last:border-b-0';
-                
-                // Hiển thị cả hành động nếu là autoMode, ngược lại chỉ hiển thị thời gian
                 li.innerHTML = `
                     <span class="font-medium">${actionText} ${timeString}</span>
                     <span class="text-xs text-slate-500">${sourceText}</span>
@@ -389,23 +438,16 @@
             });
         }
 
-
         async function fetchHistory() {
             if (!TOKEN) return;
             try {
                 const dateInput = document.getElementById('history-date');
                 let selectedDate = dateInput.value;
-                
-                if (!selectedDate) {
-                    setDefaultDate();
-                    return;
-                }
+                if (!selectedDate) { setDefaultDate(); return; }
 
-                // Cập nhật tên ngày trong tiêu đề log
                 const displayDate = new Date(selectedDate).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
                 document.getElementById('logDateDisplay').textContent = displayDate;
 
-                // Chuẩn bị query
                 let queryParams = new URLSearchParams();
                 queryParams.append('singleDate', selectedDate);
 
@@ -414,33 +456,26 @@
                 });
                 const data = await res.json();
 
-                // 1. Cập nhật Thống kê
                 document.getElementById('pumpCount').textContent = data.summary.pump;
                 document.getElementById('lightCount').textContent = data.summary.light;
                 document.getElementById('avgTemp').textContent = `${data.summary.temp} °C`;
                 document.getElementById('avgWater').textContent = `${data.summary.water} %`;
 
-                // 2. Cập nhật chi tiết Log
                 renderLogDetails('pumpLogList', data.pumpLogs, 'Bơm');
                 renderLogDetails('lightLogList', data.lightLogs, 'Đèn');
-                renderLogDetails('autoModeLogList', data.autoModeLogs, 'Bật/Tắt Tự động'); // Cập nhật log autoMode
+                renderLogDetails('autoModeLogList', data.autoModeLogs, 'Bật/Tắt Tự động');
                 
             } catch (e) {
-                console.error("Lỗi khi fetch history:", e);
-                // Xóa log nếu có lỗi
-                document.getElementById('pumpLogList').innerHTML = `<li class="text-red-500 p-1">Lỗi tải chi tiết.</li>`;
-                document.getElementById('lightLogList').innerHTML = `<li class="text-red-500 p-1">Lỗi tải chi tiết.</li>`;
-                document.getElementById('autoModeLogList').innerHTML = `<li class="text-red-500 p-1">Lỗi tải chi tiết.</li>`;
+                console.error("Lỗi fetch history:", e);
             }
         }
         
         function startFetchingData() {
             fetchState();
-            setDefaultDate(); // Gọi hàm này để thiết lập ngày hôm nay và fetch data lần đầu
+            setDefaultDate(); 
             clearInterval(fetchInterval); 
             fetchInterval = setInterval(() => {
                 fetchState();
-                // Chỉ fetch history nếu ngày được chọn là ngày hôm nay
                 if (document.getElementById('history-date').value === getTodayDateString()) { 
                     fetchHistory();
                 }
@@ -471,40 +506,29 @@
         // ==================== C. CONTROLS ====================
         async function control(key) {
             if (!TOKEN) return alert("Vui lòng đăng nhập trước.");
-            
-            // Tính toán giá trị mới
             const currentStateValue = currentState[key];
-            const newValue = 1 - currentStateValue; // Đảo trạng thái (1 -> 0, 0 -> 1)
+            const newValue = 1 - currentStateValue; 
             
-            // Nếu muốn tắt/bật Bơm hoặc Đèn khi đang ở chế độ Tự động thì phải tắt Auto trước
             if (currentState.autoMode === 1 && (key === 'pump' || key === 'light')) {
-                return alert("Vui lòng TẮT Chế độ Tự động trước khi điều khiển thủ công Bơm hoặc Đèn.");
+                return alert("Vui lòng TẮT Chế độ Tự động trước khi điều khiển thủ công.");
             }
 
             try {
                 const res = await fetch(`${API_BASE}/control`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': TOKEN
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                     body: JSON.stringify({ key: key, value: newValue })
                 });
                 if (res.ok) {
-                    // Tạm thời cập nhật UI chờ feedback từ MQTT
                     currentState[key] = newValue;
                     updateButtonState(key, newValue, `btn${key.charAt(0).toUpperCase() + key.slice(1)}`, `${key}State`, newValue === 1 ? 'BẬT' : 'TẮT', 'TẮT');
                 } else {
-                    alert("Lỗi khi gửi lệnh điều khiển. Vui lòng thử lại.");
+                    alert("Lỗi khi gửi lệnh.");
                 }
-            } catch (e) {
-                console.error(e);
-                alert("Lỗi kết nối Server.");
-            }
+            } catch (e) { alert("Lỗi kết nối Server."); }
         }
         
-        // ==================== D. ADMIN LOGIC ====================
-        // Tạo User
+        // ==================== D. ADMIN & REMOTE RESET ====================
         function toggleRegisterModal(show) {
             if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
             const modal = document.getElementById('registerModal');
@@ -522,41 +546,28 @@
             try {
                 const res = await fetch(`${API_BASE}/register`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': TOKEN
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                     body: JSON.stringify({ username: u, password: p, role: r })
                 });
                 const data = await res.json();
-
                 if (data.success) {
                     alert(data.message);
                     toggleRegisterModal(false);
                     document.getElementById('newUsername').value = '';
                     document.getElementById('newPassword').value = '';
-                } else {
-                    alert(data.error);
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Lỗi kết nối!");
-            }
+                } else alert(data.error);
+            } catch (e) { alert("Lỗi kết nối!"); }
         }
         
-        // Cấu hình Ngưỡng & Lịch Đèn 
         function toggleConfigModal(show) {
             if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
             const modal = document.getElementById('configModal');
             if (show) {
-                // Tải dữ liệu hiện tại vào form khi mở modal
                 document.getElementById('thresholdInput').value = currentState.threshold;
                 document.getElementById('lightOnTime').value = currentState.lightSchedule?.on || '07:00';
                 document.getElementById('lightOffTime').value = currentState.lightSchedule?.off || '21:00';
                 modal.classList.remove('hidden');
-            } else {
-                modal.classList.add('hidden');
-            }
+            } else modal.classList.add('hidden');
         }
         
         async function updateConfig() {
@@ -564,68 +575,76 @@
             const lightOn = document.getElementById('lightOnTime').value;
             const lightOff = document.getElementById('lightOffTime').value;
             
-            if (isNaN(threshold) || threshold < 1 || threshold > 100) return alert("Ngưỡng nước phải là số từ 1 đến 100.");
-            if (!lightOn || !lightOff) return alert("Vui lòng chọn cả thời gian Bật và Tắt đèn.");
+            if (isNaN(threshold) || threshold < 1 || threshold > 100) return alert("Ngưỡng không hợp lệ.");
+            if (!lightOn || !lightOff) return alert("Vui lòng chọn giờ.");
 
             try {
                 const res = await fetch(`${API_BASE}/config`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': TOKEN
-                    },
-                    body: JSON.stringify({ 
-                        threshold: threshold,
-                        lightSchedule: { on: lightOn, off: lightOff }
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+                    body: JSON.stringify({ threshold: threshold, lightSchedule: { on: lightOn, off: lightOff } })
                 });
-                const data = await res.json();
-                
                 if (res.ok) {
-                    alert("Lưu cấu hình thành công!");
+                    alert("Lưu thành công!");
                     toggleConfigModal(false);
-                    fetchState(); // Cập nhật lại UI ngay lập tức
-                } else {
-                    alert(`Lỗi: ${data.error || 'Không thể lưu cấu hình.'}`);
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Lỗi kết nối Server.");
-            }
+                    fetchState();
+                } else alert("Lỗi lưu cấu hình.");
+            } catch (e) { alert("Lỗi kết nối Server."); }
         }
 
-        // ==================== E. INITIALIZATION ====================
-        window.onload = checkAuth;
-    </script>
-    <div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <h3 class="text-red-600 font-bold mb-2">⚠️ Vùng Nguy Hiểm</h3>
-        <p class="text-sm text-gray-600 mb-2">Dùng khi bạn muốn đổi mạng WiFi khác cho thiết bị.</p>
-        <button onclick="remoteReset()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow">
-            <i class="fa-solid fa-eraser"></i> Xóa WiFi & Reset Thiết Bị
-        </button>
-    </div>
-    
-    <script>
-        // Hàm gửi lệnh Reset
         async function remoteReset() {
-            if (!confirm("CẢNH BÁO: Thiết bị sẽ quên mạng WiFi hiện tại và mất kết nối.\n\nBạn có chắc chắn không?")) return;
-            
+            if (!confirm("CẢNH BÁO: Thiết bị sẽ quên WiFi hiện tại và mất kết nối.\n\nBạn có chắc chắn không?")) return;
             try {
                 const res = await fetch(`${API_BASE}/reset-wifi`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 const data = await res.json();
+                if (data.success) alert("Đã gửi lệnh Reset!");
+                else alert("Lỗi: " + data.error);
+            } catch (e) { alert("Lỗi kết nối tới Server"); }
+        }
+
+        // ==================== E. WIFI UPDATE (NEW) ====================
+        function toggleWifiModal(show) {
+            // Kiểm tra quyền Admin (nếu muốn)
+            if (USER_ROLE !== 'admin' && show) return alert("Chức năng chỉ dành cho Admin.");
+            
+            const modal = document.getElementById('wifiModal');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        async function sendWifiUpdate() {
+            const ssid = document.getElementById('newWifiSSID').value;
+            const pass = document.getElementById('newWifiPass').value;
+
+            if (!ssid) return alert("Vui lòng nhập tên WiFi!");
+            if (!confirm(`Bạn chắc chắn muốn chuyển ESP sang mạng: ${ssid}?`)) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/update-wifi-creds`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': TOKEN
+                    },
+                    body: JSON.stringify({ ssid: ssid, pass: pass })
+                });
+                const data = await res.json();
                 
                 if (data.success) {
-                    alert("Đã gửi lệnh! Thiết bị sẽ khởi động lại và phát ra WiFi AquaConfig.");
+                    alert("Đã gửi lệnh! ESP sẽ khởi động lại và kết nối mạng mới.");
+                    toggleWifiModal(false);
                 } else {
-                    alert("Lỗi: " + data.error);
+                    alert("Lỗi: " + (data.error || "Không xác định"));
                 }
             } catch (e) {
-                alert("Lỗi kết nối tới Server");
+                alert("Lỗi kết nối tới Server.");
             }
         }
+
+        window.onload = checkAuth;
     </script>
 </body>
 </html>

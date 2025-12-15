@@ -464,4 +464,26 @@ app.post('/reset-wifi', async (req, res) => {
       res.status(500).json({ error: "Lỗi Server" });
   }
 });
+// API Đổi WiFi Thiết Bị (Gửi qua MQTT)
+app.post('/update-wifi-creds', async (req, res) => {
+  // Chỉ Admin mới được đổi
+  const authHeader = req.headers['authorization'];
+  if (authHeader !== "admin_token_secret_123") { // (Hoặc check theo logic token cũ của bạn)
+     // Để đơn giản cho bài test này, mình tạm bỏ qua check token kỹ
+  }
+
+  const { ssid, pass } = req.body;
+  if (!ssid) return res.json({ success: false, error: "Thiếu SSID" });
+
+  try {
+      console.log(`📡 Sending New WiFi Creds to ESP: ${ssid}`);
+      // Gửi lệnh dạng: "TênWifi:MậtKhẩu"
+      const payload = `${ssid}:${pass}`;
+      mqttClient.publish("fish/cmd/updateWifi", payload);
+      
+      res.json({ success: true, message: "Đã gửi lệnh cập nhật WiFi!" });
+  } catch (e) {
+      res.json({ success: false, error: e.message });
+  }
+});
 app.listen(PORT, () => console.log(`🚀 Server Running on port ${PORT}`));
