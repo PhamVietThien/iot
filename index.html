@@ -3,648 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Bể Cá Thông Minh</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>AquaSmart Pro - Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .blink { animation: blinker 1s linear infinite; } 
-        @keyframes blinker { 50% { opacity: 0; } }
+        :root { 
+            --primary: #4834d4; --success: #2ecc71; --danger: #eb4d4b; 
+            --bg: #f5f6fa; --card-bg: rgba(255, 255, 255, 0.9);
+        }
         
-        /* Tùy chỉnh thanh cuộn */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { 
+            font-family: 'Inter', 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed; margin: 0; min-height: 100vh;
+        }
+
+        .container { max-width: 1100px; margin: auto; padding: 20px; }
+        .hidden { display: none !important; }
+
+        /* Login Card */
+        #loginPage {
+            max-width: 400px; margin: 100px auto; padding: 40px;
+            background: var(--card-bg); border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center;
+        }
+
+        /* Navbar */
+        .navbar {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--card-bg); padding: 15px 25px; border-radius: 15px;
+            margin-bottom: 25px; box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        /* Card */
+        .card { 
+            background: var(--card-bg); padding: 25px; border-radius: 20px; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+
+        /* Stats */
+        .stat-box { text-align: center; padding: 10px; }
+        .stat-value { font-size: 3rem; font-weight: 800; color: var(--primary); }
+        .stat-label { font-size: 0.9rem; font-weight: bold; color: #636e72; text-transform: uppercase; }
+
+        /* Buttons */
+        button { 
+            padding: 14px; border: none; border-radius: 12px; cursor: pointer; 
+            font-weight: 700; width: 100%; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
+        button:disabled { cursor: not-allowed; opacity: 0.7; }
+        
+        .btn-on { background: linear-gradient(to right, #2ecc71, #27ae60); color: white; }
+        .btn-off { background: #dcdde1; color: #2f3640; }
+        .btn-primary { background: linear-gradient(to right, #4834d4, #686de0); color: white; }
+        .btn-logout { background: #f8f9fa; color: var(--danger); width: auto; padding: 8px 15px; border: 1px solid #eee; }
+
+        /* Badge */
+        .badge { background: var(--primary); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; float: right; }
+
+        /* Table */
+        .table-wrap { overflow-x: auto; border-radius: 12px; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th { background: #f1f2f6; padding: 15px; text-align: left; font-size: 0.8rem; color: #2f3640; }
+        td { padding: 15px; border-top: 1px solid #eee; font-size: 0.9rem; }
+
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 10px; width: 100%; box-sizing: border-box; margin: 10px 0; }
+        input:disabled { background-color: #f1f2f6; color: #7f8c8d; cursor: not-allowed; border: 1px dashed #bdc3c7; }
+        
+        .alert { background: var(--danger); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+<body>
 
-    <div id="loginModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-6 text-center text-slate-700">Đăng Nhập Hệ Thống</h2>
-            <input id="username" type="text" placeholder="Tên đăng nhập" class="w-full p-3 mb-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <input id="password" type="password" placeholder="Mật khẩu" class="w-full p-3 mb-6 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button onclick="login()" class="w-full bg-blue-600 text-white font-semibold p-3 rounded-lg hover:bg-blue-700 transition duration-200">Đăng Nhập</button>
-        </div>
+<div class="container">
+    <div id="loginPage">
+        <div style="font-size: 4rem; color: var(--primary); margin-bottom: 10px;"><i class="fas fa-water"></i></div>
+        <h2 style="margin-bottom: 30px;">AquaSmart Pro</h2>
+        <input type="text" id="userIn" placeholder="Tên đăng nhập">
+        <input type="password" id="passIn" placeholder="Mật khẩu">
+        <button onclick="login()" class="btn-primary">ĐĂNG NHẬP <i class="fas fa-arrow-right"></i></button>
     </div>
 
-    <header class="bg-white shadow-lg sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 class="text-3xl font-extrabold text-blue-600 flex items-center">
-                <i class="fas fa-fish mr-3"></i>
-                Aqua Smart Home
-            </h1>
-            <div class="flex items-center space-x-4">
-                <div id="admin-controls" class="hidden space-x-2">
-                    <button onclick="toggleRegisterModal(true)" class="bg-green-500 text-white p-2 rounded-lg text-sm hover:bg-green-600 transition duration-150">
-                        <i class="fas fa-user-plus mr-1"></i> Tạo User
-                    </button>
-                    <button onclick="toggleConfigModal(true)" class="bg-yellow-500 text-white p-2 rounded-lg text-sm hover:bg-yellow-600 transition duration-150">
-                        <i class="fas fa-cogs mr-1"></i> Cài đặt (Admin)
-                    </button>
+    <div id="mainPage" class="hidden">
+        <div class="navbar">
+            <h3 style="margin:0; color:var(--primary)"><i class="fas fa-fish"></i> AQUASMART 2025</h3>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span id="userNameDisplay" style="font-weight: bold; color: #2f3640;"></span>
+                <button onclick="logout()" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Thoát</button>
+            </div>
+        </div>
+
+        <div id="alertBox"></div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="stat-box">
+                    <div class="stat-label">Nhiệt độ hiện tại</div>
+                    <div class="stat-value"><span id="temp">--</span>°C</div>
+                    <p style="margin-top: 15px; color: #636e72;">Mực nước: <b id="water">--</b> mm</p>
                 </div>
-                <button onclick="logout()" class="bg-red-500 text-white p-2 rounded-lg text-sm hover:bg-red-600 transition duration-150">
-                    <i class="fas fa-sign-out-alt mr-1"></i> Đăng Xuất
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0"><i class="fas fa-sliders"></i> Điều khiển</h3>
+                <button id="btnAuto" onclick="toggle('autoMode')" style="margin-bottom: 15px;">TỰ ĐỘNG: --</button>
+                <div style="margin-bottom: 15px; position: relative;">
+                    <span class="badge" id="pCount">0 lần</span>
+                    <button id="btnPump" onclick="toggle('pump')"><i class="fas fa-faucet"></i> MÁY BƠM</button>
+                </div>
+                <div style="position: relative;">
+                    <span class="badge" id="lCount">0 lần</span>
+                    <button id="btnLight" onclick="toggle('light')"><i class="fas fa-lightbulb"></i> ĐÈN LED</button>
+                </div>
+            </div>
+
+            <div id="configPanel" class="card">
+                <h3 style="margin-top:0"><i class="fas fa-cog"></i> Thông số & Cài đặt</h3>
+                
+                <label style="font-size: 0.8rem; font-weight: bold;">NGƯỠNG BƠM (MM):</label>
+                <input type="number" id="thIn" class="config-input" placeholder="Ví dụ: 150">
+                
+                <label style="font-size: 0.8rem; font-weight: bold;">HẸN GIỜ ĐÈN (BẬT - TẮT):</label>
+                <div style="display:flex; gap:10px">
+                    <input type="time" id="onIn" class="config-input">
+                    <input type="time" id="offIn" class="config-input">
+                </div>
+                
+                <button id="btnSaveConfig" onclick="saveConfig()" class="btn-primary hidden" style="margin-top: 10px;">
+                    <i class="fas fa-save"></i> CẬP NHẬT CẤU HÌNH
                 </button>
-            </div>
-        </div>
-    </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            
-            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
-                <div class="p-3 bg-red-100 rounded-full text-red-600 text-2xl"><i class="fas fa-thermometer-half"></i></div>
-                <div>
-                    <p class="text-sm font-medium text-slate-500">Nhiệt Độ</p>
-                    <p id="temperature" class="text-3xl font-bold text-slate-800">-- °C</p>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
-                <div class="p-3 bg-blue-100 rounded-full text-blue-600 text-2xl"><i class="fas fa-water"></i></div>
-                <div>
-                    <p class="text-sm font-medium text-slate-500">Mực Nước (Ngưỡng: <span id="currentThreshold">--</span>%)</p>
-                    <p id="waterLevel" class="text-3xl font-bold text-slate-800">-- %</p>
-                </div>
-            </div>
-            
-            <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition transform hover:scale-[1.02]">
-                <div id="fishIcon" class="p-3 bg-gray-200 rounded-full text-gray-500 text-2xl"><i class="fas fa-eye"></i></div>
-                <div>
-                    <p class="text-sm font-medium text-slate-500">Phát hiện Cá</p>
-                    <p id="fishDetected" class="text-3xl font-bold text-gray-500">Không</p>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow-lg transition transform hover:scale-[1.02]">
-                <div class="flex items-center space-x-4 mb-2">
-                    <div class="p-3 bg-purple-100 rounded-full text-purple-600 text-2xl"><i class="fas fa-wifi"></i></div>
-                    <p class="text-xl font-bold text-slate-800">Thông tin Mạng</p>
-                </div>
-                <div id="network-info" class="text-sm text-slate-600 space-y-1">
-                    <p>SSID: <span id="wifiSSID" class="font-semibold">--</span></p>
-                    <p>IP: <span id="ip" class="font-semibold">--</span></p>
-                    <p>RSSI: <span id="rssi" class="font-semibold">-- dBm</span></p>
+                <div id="onlyAdminSection" class="hidden">
+                    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+                    <h4><i class="fas fa-user-plus"></i> Tạo tài khoản</h4>
+                    <input type="text" id="uNew" placeholder="Tên người dùng mới">
+                    <input type="password" id="pNew" placeholder="Mật khẩu mới">
+                    <button onclick="regUser()" style="background:#2f3640; color:white">TẠO NGƯỜI DÙNG</button>
                 </div>
             </div>
         </div>
-        
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
-                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Điều Khiển</h2>
-                    
-                    <button id="btnAutoMode" onclick="control('autoMode')" class="w-full flex justify-between items-center p-4 mb-3 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
-                        <span class="font-semibold text-lg"><i class="fas fa-robot mr-2"></i> Chế độ Tự động</span>
-                        <span id="autoModeState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
-                    </button>
 
-                    <button id="btnPump" onclick="control('pump')" class="w-full flex justify-between items-center p-4 mb-3 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
-                        <span class="font-semibold text-lg"><i class="fas fa-tint mr-2"></i> Máy Bơm</span>
-                        <span id="pumpState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
-                    </button>
-                    
-                    <button id="btnLight" onclick="control('light')" class="w-full flex justify-between items-center p-4 rounded-lg shadow-md transition duration-200 hover:shadow-lg">
-                        <span class="font-semibold text-lg"><i class="fas fa-lightbulb mr-2"></i> Đèn Chiếu Sáng</span>
-                        <span id="lightState" class="px-3 py-1 rounded-full text-white font-bold text-sm bg-gray-500">TẮT</span>
-                    </button>
-                    
-                </div>
-                
-                <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Lịch Đèn Tự Động</h2>
-                    <p class="text-sm text-slate-500 mb-2">Chỉ áp dụng khi **Chế độ Tự động** BẬT</p>
-                    <div class="flex justify-between p-3 bg-slate-100 rounded-lg">
-                        <span class="font-semibold">Bật lúc:</span>
-                        <span id="scheduleOn" class="font-bold text-green-600">--:--</span>
-                    </div>
-                    <div class="flex justify-between p-3 bg-slate-100 rounded-lg mt-2">
-                        <span class="font-semibold">Tắt lúc:</span>
-                        <span id="scheduleOff" class="font-bold text-red-600">--:--</span>
-                    </div>
-                </div>
+        <div class="card">
+            <h3 style="margin-top:0"><i class="fas fa-history"></i> Thống kê & Nhật ký</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="date" id="filterDate" style="margin:0; flex-grow:1">
+                <button onclick="loadHistory()" class="btn-primary" style="width:100px">LỌC</button>
+                <button onclick="clearFilter()" style="width:100px; background:#95a5a6; color:white">XÓA</button>
             </div>
-
-            <div class="lg:col-span-2">
-                <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h2 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Lịch Sử & Thống Kê</h2>
-                    
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-6">
-                        <div class="p-3 bg-blue-50 rounded-lg"><p class="text-sm text-slate-500">Lần Bơm</p><p id="pumpCount" class="font-bold text-lg text-blue-700">--</p></div>
-                        <div class="p-3 bg-amber-50 rounded-lg"><p class="text-sm text-slate-500">Lần Bật Đèn</p><p id="lightCount" class="font-bold text-lg text-amber-700">--</p></div>
-                        <div class="p-3 bg-red-50 rounded-lg"><p class="text-sm text-slate-500">Nhiệt độ TB</p><p id="avgTemp" class="font-bold text-lg text-red-700">-- °C</p></div>
-                        <div class="p-3 bg-teal-50 rounded-lg"><p class="text-sm text-slate-500">Mực nước TB</p><p id="avgWater" class="font-bold text-lg text-teal-700">-- %</p></div>
-                    </div>
-
-                    <div class="flex items-center space-x-2 mb-4 p-3 bg-slate-100 rounded-lg">
-                        <label for="history-date" class="font-semibold text-slate-600 text-sm whitespace-nowrap">Truy vấn theo Ngày:</label>
-                        <input type="date" id="history-date" onchange="fetchHistory()" class="p-2 border rounded-lg text-sm flex-grow">
-                        <button onclick="setDefaultDate()" class="bg-blue-500 text-white p-2 rounded-lg text-sm hover:bg-blue-600 transition duration-150">
-                            Hôm Nay
-                        </button>
-                    </div>
-
-                    <h3 class="text-lg font-bold mt-6 mb-3 text-slate-700 border-b pb-2">Chi Tiết Sự Kiện (Ngày <span id="logDateDisplay">Hôm Nay</span>)</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-semibold text-blue-600 mb-2 flex items-center"><i class="fas fa-tint mr-2"></i> Máy Bơm (BẬT)</h4>
-                            <ul id="pumpLogList" class="max-h-40 overflow-y-auto text-sm space-y-1">
-                                <li class="text-gray-500">Đang tải...</li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-semibold text-amber-600 mb-2 flex items-center"><i class="fas fa-lightbulb mr-2"></i> Đèn (BẬT)</h4>
-                            <ul id="lightLogList" class="max-h-40 overflow-y-auto text-sm space-y-1">
-                                <li class="text-gray-500">Đang tải...</li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-semibold text-purple-600 mb-2 flex items-center"><i class="fas fa-robot mr-2"></i> Chế độ Tự động</h4>
-                            <ul id="autoModeLogList" class="max-h-40 overflow-y-auto text-sm space-y-1">
-                                <li class="text-gray-500">Đang tải...</li>
-                            </ul>
-                        </div>
-                    </div>
-
+            <div class="grid" style="grid-template-columns: 1fr 2.5fr;">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Ngày</th><th>Bơm</th><th>Đèn</th></tr></thead>
+                        <tbody id="statBody"></tbody>
+                    </table>
                 </div>
-            </div>
-
-        </div>
-
-        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <div id="otaPanel" class="p-4 bg-blue-50 border border-blue-200 rounded-lg hidden">
-                <h3 class="text-blue-600 font-bold mb-2">📡 Quản Lý Kết Nối</h3>
-                <div class="flex items-center justify-between flex-wrap gap-2">
-                    <span class="text-sm text-gray-600">
-                        IP: <span id="otaIpDisplay" class="font-mono font-bold text-slate-800">...</span>
-                    </span>
-                    <div class="flex items-center space-x-2">
-                        <a id="otaLink" href="#" target="_blank" class="text-blue-600 underline text-xs mr-2 hover:text-blue-800">^=^</a>
-                        
-                        <button onclick="toggleWifiModal(true)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow text-sm transition duration-150">
-                            <i class="fas fa-sync-alt mr-1"></i> Đổi WiFi
-                        </button>
-                    </div>
+                <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+                    <table>
+                        <thead><tr><th>Giờ</th><th>Hành động</th><th>Nguồn</th></tr></thead>
+                        <tbody id="logBody"></tbody>
+                    </table>
                 </div>
-            </div>
-
-            <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <h3 class="text-red-600 font-bold mb-2">⚠️ Vùng Nguy Hiểm</h3>
-                <p class="text-sm text-gray-600 mb-2">Dùng khi bạn muốn đổi mạng WiFi khác cho thiết bị.</p>
-                <button onclick="remoteReset()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow">
-                    <i class="fa-solid fa-eraser"></i> Xóa WiFi & Reset Thiết Bị
-                </button>
-            </div>
-        </div>
-
-        <p class="text-center text-sm text-slate-400 mt-8">Cập nhật lần cuối: <span id="lastUpdated">--</span></p>
-
-    </main>
-    
-    <div id="registerModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
-            <h3 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Tạo Người Dùng Mới</h3>
-            <input id="newUsername" type="text" placeholder="Tên đăng nhập" class="w-full p-3 mb-3 border rounded-lg">
-            <input id="newPassword" type="password" placeholder="Mật khẩu" class="w-full p-3 mb-3 border rounded-lg">
-            <select id="newRole" class="w-full p-3 mb-4 border rounded-lg">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-            </select>
-            <div class="flex justify-between space-x-3">
-                <button onclick="toggleRegisterModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-semibold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
-                <button onclick="createUser()" class="w-1/2 bg-blue-600 text-white font-semibold p-3 rounded-lg hover:bg-blue-700 transition duration-150">Tạo</button>
             </div>
         </div>
     </div>
-    
-    <div id="configModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-            <h3 class="text-xl font-bold mb-4 text-slate-700 border-b pb-2">Cài Đặt Hệ Thống (Admin)</h3>
-            
-            <label for="thresholdInput" class="block text-sm font-medium text-slate-700 mb-1">Ngưỡng Mực Nước Bật Bơm (%)</label>
-            <input id="thresholdInput" type="number" min="1" max="100" placeholder="Ví dụ: 80" class="w-full p-3 mb-4 border rounded-lg">
-            <p class="text-xs text-slate-500 mb-4">Máy bơm sẽ tự động bật khi mực nước dưới ngưỡng này (Chế độ Auto).</p>
-            
-            <label class="block text-sm font-medium text-slate-700 mb-1">Lịch Bật/Tắt Đèn (HH:MM)</label>
-            <div class="flex space-x-3 mb-4">
-                <input id="lightOnTime" type="time" class="w-full p-3 border rounded-lg" title="Thời gian BẬT đèn">
-                <input id="lightOffTime" type="time" class="w-full p-3 border rounded-lg" title="Thời gian TẮT đèn">
-            </div>
+</div>
 
-            <div class="flex justify-between space-x-3">
-                <button onclick="toggleConfigModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-semibold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
-                <button onclick="updateConfig()" class="w-1/2 bg-green-600 text-white font-semibold p-3 rounded-lg hover:bg-green-700 transition duration-150">Lưu Cấu Hình</button>
-            </div>
-        </div>
-    </div>
+<script>
+    let token = ""; let role = ""; 
+    let refreshInterval = null;
 
-    <div id="wifiModal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-            <h3 class="text-xl font-bold mb-4 text-blue-600 border-b pb-2">
-                <i class="fas fa-wifi mr-2"></i>Cập Nhật WiFi Mới
-            </h3>
-            <p class="text-sm text-gray-500 mb-4">ESP sẽ lưu mạng mới và khởi động lại. Nếu sai mật khẩu, thiết bị sẽ quay về chế độ phát WiFi (Pha 1).</p>
-            
-            <label class="block text-sm font-medium text-slate-700 mb-1">Tên WiFi (SSID)</label>
-            <input id="newWifiSSID" type="text" placeholder="Nhập tên WiFi..." class="w-full p-3 mb-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            
-            <label class="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
-            <input id="newWifiPass" type="text" placeholder="Nhập mật khẩu..." class="w-full p-3 mb-6 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            
-            <div class="flex justify-between space-x-3">
-                <button onclick="toggleWifiModal(false)" class="w-1/2 bg-gray-300 text-slate-700 font-bold p-3 rounded-lg hover:bg-gray-400 transition duration-150">Hủy</button>
-                <button onclick="sendWifiUpdate()" class="w-1/2 bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition duration-150">
-                    <i class="fas fa-save mr-1"></i> Cập Nhật
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const API_BASE = window.location.origin;
-        let TOKEN = localStorage.getItem('jwtToken') || null;
-        let USER_ROLE = localStorage.getItem('userRole') || 'guest';
-        let fetchInterval;
-        let currentState = {}; 
-
-        // ==================== A. AUTHENTICATION ====================
-        function checkAuth() {
-            if (!TOKEN) {
-                document.getElementById('loginModal').classList.remove('hidden');
-                document.body.classList.add('overflow-hidden');
-            } else {
-                document.getElementById('loginModal').classList.add('hidden');
-                document.body.classList.remove('overflow-hidden');
-                if (USER_ROLE === 'admin') {
-                    document.getElementById('admin-controls').classList.remove('hidden');
-                } else {
-                    document.getElementById('admin-controls').classList.add('hidden');
-                }
-                startFetchingData();
-            }
+    window.onload = () => {
+        const savedToken = localStorage.getItem('token');
+        const savedRole = localStorage.getItem('role');
+        if (savedToken) {
+            token = savedToken; role = savedRole;
+            initDashboard();
         }
+    }
 
-        async function login() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+    async function login() {
+        const res = await fetch('/api/login', { 
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username: userIn.value, password: passIn.value}) 
+        });
+        if (res.ok) {
+            const data = await res.json();
+            token = data.token; role = data.role;
+            localStorage.setItem('token', token);
+            localStorage.setItem('role', role);
+            localStorage.setItem('username', data.username);
+            initDashboard();
+        } else alert("Đăng nhập thất bại! Kiểm tra lại tài khoản.");
+    }
 
-            try {
-                const res = await fetch(`${API_BASE}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
+    function logout() {
+        localStorage.clear();
+        location.reload();
+    }
 
-                if (data.success) {
-                    TOKEN = data.token;
-                    USER_ROLE = data.role;
-                    localStorage.setItem('jwtToken', TOKEN);
-                    localStorage.setItem('userRole', USER_ROLE);
-                    checkAuth();
-                } else {
-                    alert(data.error);
-                }
-            } catch (e) {
-                alert("Lỗi kết nối Server.");
-            }
-        }
-
-        function logout() {
-            TOKEN = null;
-            USER_ROLE = 'guest';
-            localStorage.removeItem('jwtToken');
-            localStorage.removeItem('userRole');
-            clearInterval(fetchInterval);
-            checkAuth();
-        }
-
-        // ==================== B. DATA FETCHING & DISPLAY ====================
-        async function fetchState() {
-            if (!TOKEN) return;
-            try {
-                const res = await fetch(`${API_BASE}/state`, {
-                    headers: { 'Authorization': TOKEN }
-                });
-                const data = await res.json();
-                currentState = data; 
-
-                // 1. Cập nhật trạng thái thiết bị
-                updateButtonState('autoMode', data.autoMode, 'btnAutoMode', 'autoModeState', 'TỰ ĐỘNG', 'TẮT');
-                updateButtonState('pump', data.pump, 'btnPump', 'pumpState', 'BẬT', 'TẮT');
-                updateButtonState('light', data.light, 'btnLight', 'lightState', 'BẬT', 'TẮT');
-
-                // 2. Cập nhật giá trị cảm biến
-                document.getElementById('temperature').textContent = `${data.temperature.toFixed(1)} °C`;
-                document.getElementById('waterLevel').textContent = `${data.waterLevel}%`;
-                document.getElementById('currentThreshold').textContent = data.threshold || '--';
-                
-                // 3. Cập nhật Phát hiện Cá
-                const fishIcon = document.getElementById('fishIcon');
-                const fishText = document.getElementById('fishDetected');
-                if (data.fishDetected) {
-                    fishIcon.className = "p-3 bg-green-100 rounded-full text-green-600 text-2xl blink";
-                    fishText.className = "text-3xl font-bold text-green-600 blink";
-                    fishText.textContent = "CÓ CÁ";
-                } else {
-                    fishIcon.className = "p-3 bg-gray-200 rounded-full text-gray-500 text-2xl";
-                    fishText.className = "text-3xl font-bold text-gray-500";
-                    fishText.textContent = "Không";
-                }
-                
-                // 4. Cập nhật Thông tin Mạng
-                document.getElementById('wifiSSID').textContent = data.wifiSSID || 'N/A';
-                document.getElementById('ip').textContent = data.ip || '0.0.0.0';
-                document.getElementById('rssi').textContent = `${data.rssi || 0} dBm`;
-
-                // === [UPDATED] LOGIC HIỆN PANEL QUẢN LÝ KẾT NỐI ===
-                const otaPanel = document.getElementById('otaPanel');
-                const otaLink = document.getElementById('otaLink');
-                const otaIpDisplay = document.getElementById('otaIpDisplay');
-
-                if (data.ip && data.ip !== "0.0.0.0" && data.ip !== "") {
-                    otaPanel.classList.remove('hidden');
-                    otaIpDisplay.textContent = data.ip;
-                    otaLink.href = `http://${data.ip}/update`; 
-                } else {
-                    otaPanel.classList.add('hidden');
-                }
-                // ====================================================
-
-                // 5. Cập nhật Lịch & Time
-                document.getElementById('scheduleOn').textContent = data.lightSchedule?.on || '--:--';
-                document.getElementById('scheduleOff').textContent = data.lightSchedule?.off || '--:--';
-                document.getElementById('lastUpdated').textContent = new Date(data.lastUpdated).toLocaleTimeString('vi-VN', { 
-                    year: 'numeric', month: 'numeric', day: 'numeric', 
-                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
-                });
-
-            } catch (e) {
-                console.error("Lỗi khi fetch state:", e);
-                if (e instanceof TypeError) logout(); 
-            }
-        }
-
-        function getTodayDateString() {
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`;
-        }
+    function initDashboard() {
+        loginPage.classList.add('hidden');
+        mainPage.classList.remove('hidden');
         
-        function setDefaultDate() {
-            const dateInput = document.getElementById('history-date');
-            dateInput.value = getTodayDateString();
-            fetchHistory();
+        // Phân quyền hiển thị
+        if (role === 'admin') {
+            btnSaveConfig.classList.remove('hidden');
+            onlyAdminSection.classList.remove('hidden');
+            document.getElementById('userNameDisplay').innerHTML = `<i class="fas fa-user-shield"></i> Admin: ${localStorage.getItem('username')}`;
+        } else {
+            // Khóa các ô input nếu là user
+            const inputs = document.querySelectorAll('.config-input');
+            inputs.forEach(input => input.disabled = true);
+            document.getElementById('userNameDisplay').innerHTML = `<i class="fas fa-user"></i> User: ${localStorage.getItem('username')}`;
         }
 
-        function renderLogDetails(ulId, logs, logType) {
-            const ul = document.getElementById(ulId);
-            ul.innerHTML = ''; 
+        updateState();
+        refreshInterval = setInterval(updateState, 3000);
+    }
 
-            if (!logs || logs.length === 0) {
-                ul.innerHTML = `<li class="text-gray-500 p-1">Không có sự kiện ${logType} nào trong ngày này.</li>`;
-                return;
-            }
-
-            logs.forEach(log => {
-                const timestamp = new Date(log.timestamp || log);
-                const timeString = timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                
-                let sourceText = 'Thủ công';
-                let actionText = ''; 
-
-                if (log.source === 'auto_schedule') sourceText = 'Tự động (Lịch)';
-                else if (log.source === 'auto_water_level') sourceText = 'Tự động (Mực nước)';
-                else if (log.source === 'manual') sourceText = 'Thủ công';
-                else if (log.source) sourceText = log.source;
-
-                if (ulId === 'autoModeLogList') {
-                    actionText = log.value === 1 ? '<span class="text-white bg-blue-600 px-2 rounded">BẬT</span>' : '<span class="text-white bg-gray-500 px-2 rounded">TẮT</span>';
-                }
-
-                const li = document.createElement('li');
-                li.className = 'flex justify-between items-center text-slate-700 p-1 border-b border-dashed last:border-b-0';
-                li.innerHTML = `
-                    <span class="font-medium">${actionText} ${timeString}</span>
-                    <span class="text-xs text-slate-500">${sourceText}</span>
-                `;
-                ul.appendChild(li);
-            });
-        }
-
-        async function fetchHistory() {
-            if (!TOKEN) return;
-            try {
-                const dateInput = document.getElementById('history-date');
-                let selectedDate = dateInput.value;
-                if (!selectedDate) { setDefaultDate(); return; }
-
-                const displayDate = new Date(selectedDate).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
-                document.getElementById('logDateDisplay').textContent = displayDate;
-
-                let queryParams = new URLSearchParams();
-                queryParams.append('singleDate', selectedDate);
-
-                const res = await fetch(`${API_BASE}/history?${queryParams.toString()}`, { 
-                    headers: { 'Authorization': TOKEN }
-                });
-                const data = await res.json();
-
-                document.getElementById('pumpCount').textContent = data.summary.pump;
-                document.getElementById('lightCount').textContent = data.summary.light;
-                document.getElementById('avgTemp').textContent = `${data.summary.temp} °C`;
-                document.getElementById('avgWater').textContent = `${data.summary.water} %`;
-
-                renderLogDetails('pumpLogList', data.pumpLogs, 'Bơm');
-                renderLogDetails('lightLogList', data.lightLogs, 'Đèn');
-                renderLogDetails('autoModeLogList', data.autoModeLogs, 'Bật/Tắt Tự động');
-                
-            } catch (e) {
-                console.error("Lỗi fetch history:", e);
-            }
-        }
-        
-        function startFetchingData() {
-            fetchState();
-            setDefaultDate(); 
-            clearInterval(fetchInterval); 
-            fetchInterval = setInterval(() => {
-                fetchState();
-                if (document.getElementById('history-date').value === getTodayDateString()) { 
-                    fetchHistory();
-                }
-            }, 2000); 
-        }
-
-        function updateButtonState(key, state, btnId, textId, textOn, textOff) {
-            const button = document.getElementById(btnId);
-            const text = document.getElementById(textId);
-
-            if (state === 1) {
-                button.classList.remove('bg-gray-200');
-                button.classList.add('bg-white');
-                text.textContent = textOn;
-                text.classList.remove('bg-gray-500', 'bg-red-500', 'bg-yellow-500');
-                if (key === 'autoMode') text.classList.add('bg-blue-600');
-                else if (key === 'pump') text.classList.add('bg-green-600');
-                else if (key === 'light') text.classList.add('bg-yellow-600');
-            } else {
-                button.classList.remove('bg-white');
-                button.classList.add('bg-gray-200');
-                text.textContent = textOff;
-                text.classList.remove('bg-blue-600', 'bg-green-600', 'bg-yellow-600');
-                text.classList.add('bg-gray-500');
-            }
-        }
-
-        // ==================== C. CONTROLS ====================
-        async function control(key) {
-            if (!TOKEN) return alert("Vui lòng đăng nhập trước.");
-            const currentStateValue = currentState[key];
-            const newValue = 1 - currentStateValue; 
+    async function updateState() {
+        if(!token) return;
+        try {
+            const res = await fetch('/state', { headers: {'Authorization': token} });
+            if(res.status === 401) return logout();
+            const s = await res.json();
             
-            if (currentState.autoMode === 1 && (key === 'pump' || key === 'light')) {
-                return alert("Vui lòng TẮT Chế độ Tự động trước khi điều khiển thủ công.");
+            // Cập nhật cảm biến
+            document.getElementById('temp').innerText = s.temperature;
+            document.getElementById('water').innerText = s.distance_mm;
+            alertBox.innerHTML = (s.alerts || []).map(m => `<div class="alert">${m}</div>`).join('');
+            
+            // Cập nhật trạng thái nút
+            btnAuto.className = s.autoMode ? 'btn-on' : 'btn-off';
+            btnAuto.innerText = `TỰ ĐỘNG: ${s.autoMode ? 'BẬT' : 'TẮT'}`;
+            
+            const isAuto = s.autoMode === 1;
+            btnPump.disabled = isAuto;
+            btnLight.disabled = isAuto;
+            
+            btnPump.className = isAuto ? 'btn-off' : (s.pump ? 'btn-on' : 'btn-off');
+            btnLight.className = isAuto ? 'btn-off' : (s.light ? 'btn-on' : 'btn-off');
+
+            // Cập nhật giá trị vào Input (Chỉ khi người dùng không đang gõ)
+            if (document.activeElement.tagName !== 'INPUT') {
+                thIn.value = s.threshold || "";
+                onIn.value = s.lightSchedule?.on || ""; 
+                offIn.value = s.lightSchedule?.off || ""; 
             }
 
-            try {
-                const res = await fetch(`${API_BASE}/control`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
-                    body: JSON.stringify({ key: key, value: newValue })
-                });
-                if (res.ok) {
-                    currentState[key] = newValue;
-                    updateButtonState(key, newValue, `btn${key.charAt(0).toUpperCase() + key.slice(1)}`, `${key}State`, newValue === 1 ? 'BẬT' : 'TẮT', 'TẮT');
-                } else {
-                    alert("Lỗi khi gửi lệnh.");
-                }
-            } catch (e) { alert("Lỗi kết nối Server."); }
-        }
-        
-        // ==================== D. ADMIN & REMOTE RESET ====================
-        function toggleRegisterModal(show) {
-            if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
-            const modal = document.getElementById('registerModal');
-            if (show) modal.classList.remove('hidden');
-            else modal.classList.add('hidden');
-        }
+            loadHistory();
+        } catch (e) { console.error(e); }
+    }
 
-        async function createUser() {
-            const u = document.getElementById('newUsername').value;
-            const p = document.getElementById('newPassword').value;
-            const r = document.getElementById('newRole').value;
-
-            if (!u || !p) return alert("Vui lòng nhập đủ thông tin!");
-
-            try {
-                const res = await fetch(`${API_BASE}/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
-                    body: JSON.stringify({ username: u, password: p, role: r })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert(data.message);
-                    toggleRegisterModal(false);
-                    document.getElementById('newUsername').value = '';
-                    document.getElementById('newPassword').value = '';
-                } else alert(data.error);
-            } catch (e) { alert("Lỗi kết nối!"); }
-        }
+    async function toggle(key) {
+        // Lấy trạng thái hiện tại trước khi toggle
+        const s = await fetch('/state', { headers: {'Authorization': token} }).then(r => r.json());
+        const newValue = s[key] ? 0 : 1;
         
-        function toggleConfigModal(show) {
-            if (USER_ROLE !== 'admin' && show) return alert("Bạn không có quyền Admin.");
-            const modal = document.getElementById('configModal');
-            if (show) {
-                document.getElementById('thresholdInput').value = currentState.threshold;
-                document.getElementById('lightOnTime').value = currentState.lightSchedule?.on || '07:00';
-                document.getElementById('lightOffTime').value = currentState.lightSchedule?.off || '21:00';
-                modal.classList.remove('hidden');
-            } else modal.classList.add('hidden');
-        }
-        
-        async function updateConfig() {
-            const threshold = parseInt(document.getElementById('thresholdInput').value);
-            const lightOn = document.getElementById('lightOnTime').value;
-            const lightOff = document.getElementById('lightOffTime').value;
+        await fetch('/update', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
+            body: JSON.stringify({[key]: newValue}) 
+        });
+        updateState();
+    }
+
+    async function loadHistory() {
+        try {
+            const d = filterDate.value;
+            const statsRes = await fetch(`/api/stats${d ? '?date='+d : ''}`, { headers: {'Authorization': token} });
+            const stats = await statsRes.json();
             
-            if (isNaN(threshold) || threshold < 1 || threshold > 100) return alert("Ngưỡng không hợp lệ.");
-            if (!lightOn || !lightOff) return alert("Vui lòng chọn giờ.");
+            statBody.innerHTML = stats.filter ? 
+                `<tr><td>${stats.date}</td><td>${stats.pump}</td><td>${stats.light}</td></tr>` : 
+                (stats.stats || []).map(s => `<tr><td>${s._id}</td><td>${s.pump}</td><td>${s.light}</td></tr>`).join('');
 
-            try {
-                const res = await fetch(`${API_BASE}/config`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
-                    body: JSON.stringify({ threshold: threshold, lightSchedule: { on: lightOn, off: lightOff } })
-                });
-                if (res.ok) {
-                    alert("Lưu thành công!");
-                    toggleConfigModal(false);
-                    fetchState();
-                } else alert("Lỗi lưu cấu hình.");
-            } catch (e) { alert("Lỗi kết nối Server."); }
+            const today = new Date(Date.now() + 7*3600000).toISOString().split('T')[0];
+            const ts = await fetch(`/api/stats?date=${today}`, { headers: {'Authorization': token} }).then(r => r.json());
+            pCount.innerText = ts.pump + " lần"; lCount.innerText = ts.light + " lần";
+
+            const logsRes = await fetch(`/api/logs${d ? '?date='+d : ''}`, { headers: {'Authorization': token} });
+            const logs = await logsRes.json();
+            logBody.innerHTML = logs.map(l => `
+                <tr>
+                    <td>${new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+                    <td><b>${l.action}</b></td>
+                    <td>${l.source}</td>
+                </tr>`).join('');
+        } catch (err) {}
+    }
+
+    function clearFilter() { filterDate.value = ''; loadHistory(); }
+
+    async function saveConfig() { 
+        if (role !== 'admin') return;
+        const res = await fetch('/config', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
+            body: JSON.stringify({ 
+                threshold: thIn.value, 
+                lightSchedule: {on: onIn.value, off: offIn.value} 
+            }) 
+        });
+        if(res.ok) alert(" Cập nhật cấu hình thành công!");
+    }
+
+    async function regUser() { 
+        if (role !== 'admin') return;
+        const res = await fetch('/api/register', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
+            body: JSON.stringify({ username: uNew.value, password: pNew.value, role: 'user' }) 
+        });
+        if(res.ok) {
+            alert(" Đã tạo người dùng mới!");
+            uNew.value = ""; pNew.value = "";
         }
-
-        async function remoteReset() {
-            if (!confirm("CẢNH BÁO: Thiết bị sẽ quên WiFi hiện tại và mất kết nối.\n\nBạn có chắc chắn không?")) return;
-            try {
-                const res = await fetch(`${API_BASE}/reset-wifi`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await res.json();
-                if (data.success) alert("Đã gửi lệnh Reset!");
-                else alert("Lỗi: " + data.error);
-            } catch (e) { alert("Lỗi kết nối tới Server"); }
-        }
-
-        // ==================== E. WIFI UPDATE (NEW) ====================
-        function toggleWifiModal(show) {
-            // Kiểm tra quyền Admin (nếu muốn)
-            if (USER_ROLE !== 'admin' && show) return alert("Chức năng chỉ dành cho Admin.");
-            
-            const modal = document.getElementById('wifiModal');
-            if (show) modal.classList.remove('hidden');
-            else modal.classList.add('hidden');
-        }
-
-        async function sendWifiUpdate() {
-            const ssid = document.getElementById('newWifiSSID').value;
-            const pass = document.getElementById('newWifiPass').value;
-
-            if (!ssid) return alert("Vui lòng nhập tên WiFi!");
-            if (!confirm(`Bạn chắc chắn muốn chuyển ESP sang mạng: ${ssid}?`)) return;
-
-            try {
-                const res = await fetch(`${API_BASE}/update-wifi-creds`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': TOKEN
-                    },
-                    body: JSON.stringify({ ssid: ssid, pass: pass })
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    alert("Đã gửi lệnh! ESP sẽ khởi động lại và kết nối mạng mới.");
-                    toggleWifiModal(false);
-                } else {
-                    alert("Lỗi: " + (data.error || "Không xác định"));
-                }
-            } catch (e) {
-                alert("Lỗi kết nối tới Server.");
-            }
-        }
-
-        window.onload = checkAuth;
-    </script>
+    }
+</script>
 </body>
 </html>
