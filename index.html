@@ -20,21 +20,18 @@
         .container { max-width: 1100px; margin: auto; padding: 20px; }
         .hidden { display: none !important; }
 
-        /* Login Card */
         #loginPage {
             max-width: 400px; margin: 100px auto; padding: 40px;
             background: var(--card-bg); border-radius: 24px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center;
         }
 
-        /* Navbar */
         .navbar {
             display: flex; justify-content: space-between; align-items: center;
             background: var(--card-bg); padding: 15px 25px; border-radius: 15px;
             margin-bottom: 25px; box-shadow: 0 8px 16px rgba(0,0,0,0.1);
         }
 
-        /* Card */
         .card { 
             background: var(--card-bg); padding: 25px; border-radius: 20px; 
             box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 20px;
@@ -43,12 +40,17 @@
 
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
 
-        /* Stats */
+        /* Chỉ số cảm biến */
         .stat-box { text-align: center; padding: 10px; }
         .stat-value { font-size: 3rem; font-weight: 800; color: var(--primary); }
         .stat-label { font-size: 0.9rem; font-weight: bold; color: #636e72; text-transform: uppercase; }
 
-        /* Buttons */
+        /* Hiệu ứng cá */
+        .fish-quiet { color: #bdc3c7; transition: 0.3s; }
+        .fish-active { color: #f39c12; font-weight: bold; animation: swim 1s infinite alternate; }
+        @keyframes swim { from { transform: scale(1); } to { transform: scale(1.1); } }
+
+        /* Nút bấm */
         button { 
             padding: 14px; border: none; border-radius: 12px; cursor: pointer; 
             font-weight: 700; width: 100%; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -62,19 +64,18 @@
         .btn-primary { background: linear-gradient(to right, #4834d4, #686de0); color: white; }
         .btn-logout { background: #f8f9fa; color: var(--danger); width: auto; padding: 8px 15px; border: 1px solid #eee; }
 
-        /* Badge */
+        /* Badge số lần */
         .badge { background: var(--primary); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; float: right; }
 
-        /* Table */
+        /* Bảng */
         .table-wrap { overflow-x: auto; border-radius: 12px; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; background: white; }
         th { background: #f1f2f6; padding: 15px; text-align: left; font-size: 0.8rem; color: #2f3640; }
         td { padding: 15px; border-top: 1px solid #eee; font-size: 0.9rem; }
 
         input { padding: 12px; border: 1px solid #ddd; border-radius: 10px; width: 100%; box-sizing: border-box; margin: 10px 0; }
-        input:disabled { background-color: #f1f2f6; color: #7f8c8d; cursor: not-allowed; border: 1px dashed #bdc3c7; }
         
-        .alert { background: var(--danger); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
+        .alert { background: var(--danger); color: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
     </style>
 </head>
@@ -103,9 +104,14 @@
         <div class="grid">
             <div class="card">
                 <div class="stat-box">
-                    <div class="stat-label">Nhiệt độ hiện tại</div>
+                    <div class="stat-label">Cảm biến hồ cá</div>
                     <div class="stat-value"><span id="temp">--</span>°C</div>
-                    <p style="margin-top: 15px; color: #636e72;">Mực nước: <b id="water">--</b> mm</p>
+                    <div style="margin-top: 15px; display: flex; justify-content: center; gap: 20px;">
+                        <p style="color: #636e72; margin:0;">Mực nước: <b id="water">--</b> mm</p>
+                        <p id="fishStatus" class="fish-quiet" style="margin:0;">
+                            <i class="fas fa-fish"></i> <span id="fishText">Yên tĩnh</span>
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -124,23 +130,20 @@
 
             <div id="configPanel" class="card">
                 <h3 style="margin-top:0"><i class="fas fa-cog"></i> Thông số & Cài đặt</h3>
-                
                 <label style="font-size: 0.8rem; font-weight: bold;">NGƯỠNG BƠM (MM):</label>
-                <input type="number" id="thIn" class="config-input" placeholder="Ví dụ: 150">
-                
+                <input type="number" id="thIn" class="config-input">
                 <label style="font-size: 0.8rem; font-weight: bold;">HẸN GIỜ ĐÈN (BẬT - TẮT):</label>
                 <div style="display:flex; gap:10px">
                     <input type="time" id="onIn" class="config-input">
                     <input type="time" id="offIn" class="config-input">
                 </div>
-                
-                <button id="btnSaveConfig" onclick="saveConfig()" class="btn-primary hidden" style="margin-top: 10px;">
+                <button id="btnSaveConfig" onclick="saveConfig()" class="btn-primary" style="margin-top: 10px;">
                     <i class="fas fa-save"></i> CẬP NHẬT CẤU HÌNH
                 </button>
-
+                
                 <div id="onlyAdminSection" class="hidden">
                     <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
-                    <h4><i class="fas fa-user-plus"></i> Tạo tài khoản</h4>
+                    <h4><i class="fas fa-user-plus"></i> Tạo tài khoản mới</h4>
                     <input type="text" id="uNew" placeholder="Tên người dùng mới">
                     <input type="password" id="pNew" placeholder="Mật khẩu mới">
                     <button onclick="regUser()" style="background:#2f3640; color:white">TẠO NGƯỜI DÙNG</button>
@@ -152,7 +155,7 @@
             <h3 style="margin-top:0"><i class="fas fa-history"></i> Thống kê & Nhật ký</h3>
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                 <input type="date" id="filterDate" style="margin:0; flex-grow:1">
-                <button onclick="loadHistory()" class="btn-primary" style="width:100px">LỌC</button>
+                <button onclick="loadData()" class="btn-primary" style="width:100px">LỌC</button>
                 <button onclick="clearFilter()" style="width:100px; background:#95a5a6; color:white">XÓA</button>
             </div>
             <div class="grid" style="grid-template-columns: 1fr 2.5fr;">
@@ -174,17 +177,10 @@
 </div>
 
 <script>
-    let token = ""; let role = ""; 
-    let refreshInterval = null;
+    let token = localStorage.getItem('token');
+    let role = localStorage.getItem('role');
 
-    window.onload = () => {
-        const savedToken = localStorage.getItem('token');
-        const savedRole = localStorage.getItem('role');
-        if (savedToken) {
-            token = savedToken; role = savedRole;
-            initDashboard();
-        }
-    }
+    if (token) initDashboard();
 
     async function login() {
         const res = await fetch('/api/login', { 
@@ -198,132 +194,135 @@
             localStorage.setItem('role', role);
             localStorage.setItem('username', data.username);
             initDashboard();
-        } else alert("Đăng nhập thất bại! Kiểm tra lại tài khoản.");
+        } else alert("Đăng nhập thất bại!");
     }
 
-    function logout() {
-        localStorage.clear();
-        location.reload();
-    }
+    function logout() { localStorage.clear(); location.reload(); }
 
     function initDashboard() {
         loginPage.classList.add('hidden');
         mainPage.classList.remove('hidden');
+        userNameDisplay.innerHTML = `<i class="fas fa-${role==='admin'?'user-shield':'user'}"></i> ${role==='admin'?'Admin':'User'}: ${localStorage.getItem('username')}`;
         
-        // Phân quyền hiển thị
         if (role === 'admin') {
-            btnSaveConfig.classList.remove('hidden');
             onlyAdminSection.classList.remove('hidden');
-            document.getElementById('userNameDisplay').innerHTML = `<i class="fas fa-user-shield"></i> Admin: ${localStorage.getItem('username')}`;
         } else {
-            // Khóa các ô input nếu là user
-            const inputs = document.querySelectorAll('.config-input');
-            inputs.forEach(input => input.disabled = true);
-            document.getElementById('userNameDisplay').innerHTML = `<i class="fas fa-user"></i> User: ${localStorage.getItem('username')}`;
+            document.querySelectorAll('.config-input').forEach(i => i.disabled = true);
+            btnSaveConfig.classList.add('hidden');
         }
 
         updateState();
-        refreshInterval = setInterval(updateState, 3000);
+        loadData();
+        setInterval(updateState, 3000);
     }
 
     async function updateState() {
-        if(!token) return;
         try {
             const res = await fetch('/state', { headers: {'Authorization': token} });
-            if(res.status === 401) return logout();
+            if (res.status === 401) logout();
             const s = await res.json();
-            
-            // Cập nhật cảm biến
+
             document.getElementById('temp').innerText = s.temperature;
             document.getElementById('water').innerText = s.distance_mm;
-            alertBox.innerHTML = (s.alerts || []).map(m => `<div class="alert">${m}</div>`).join('');
             
-            // Cập nhật trạng thái nút
+            const fStatus = document.getElementById('fishStatus');
+            const fText = document.getElementById('fishText');
+            if (s.fish === 1) {
+                fStatus.className = "fish-active"; fText.innerText = "CÁ ĐANG QUẪY";
+            } else {
+                fStatus.className = "fish-quiet"; fText.innerText = "Yên tĩnh";
+            }
+
+            alertBox.innerHTML = (s.alerts || []).map(m => `<div class="alert">${m}</div>`).join('');
+
             btnAuto.className = s.autoMode ? 'btn-on' : 'btn-off';
             btnAuto.innerText = `TỰ ĐỘNG: ${s.autoMode ? 'BẬT' : 'TẮT'}`;
             
             const isAuto = s.autoMode === 1;
-            btnPump.disabled = isAuto;
-            btnLight.disabled = isAuto;
-            
-            btnPump.className = isAuto ? 'btn-off' : (s.pump ? 'btn-on' : 'btn-off');
-            btnLight.className = isAuto ? 'btn-off' : (s.light ? 'btn-on' : 'btn-off');
+            btnPump.disabled = isAuto; btnLight.disabled = isAuto;
+            btnPump.className = s.pump ? 'btn-on' : 'btn-off';
+            btnLight.className = s.light ? 'btn-on' : 'btn-off';
 
-            // Cập nhật giá trị vào Input (Chỉ khi người dùng không đang gõ)
             if (document.activeElement.tagName !== 'INPUT') {
-                thIn.value = s.threshold || "";
-                onIn.value = s.lightSchedule?.on || ""; 
-                offIn.value = s.lightSchedule?.off || ""; 
+                thIn.value = s.threshold;
+                onIn.value = s.lightSchedule?.on || "";
+                offIn.value = s.lightSchedule?.off || "";
             }
-
-            loadHistory();
-        } catch (e) { console.error(e); }
+        } catch (e) {}
     }
 
     async function toggle(key) {
-        // Lấy trạng thái hiện tại trước khi toggle
-        const s = await fetch('/state', { headers: {'Authorization': token} }).then(r => r.json());
-        const newValue = s[key] ? 0 : 1;
-        
-        await fetch('/update', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
-            body: JSON.stringify({[key]: newValue}) 
+        const res = await fetch('/state', { headers: {'Authorization': token} });
+        const s = await res.json();
+        const newVal = s[key] ? 0 : 1;
+
+        await fetch('/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': token},
+            body: JSON.stringify({ [key]: newVal })
         });
         updateState();
+        setTimeout(loadData, 500); 
     }
 
-    async function loadHistory() {
+    async function saveConfig() {
+        const body = {
+            threshold: parseInt(thIn.value),
+            lightSchedule: { on: onIn.value, off: offIn.value }
+        };
+        await fetch('/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': token},
+            body: JSON.stringify(body)
+        });
+        alert("Đã cập nhật cấu hình!");
+    }
+
+    async function loadData() {
         try {
-            const d = filterDate.value;
-            const statsRes = await fetch(`/api/stats${d ? '?date='+d : ''}`, { headers: {'Authorization': token} });
-            const stats = await statsRes.json();
-            
-            statBody.innerHTML = stats.filter ? 
-                `<tr><td>${stats.date}</td><td>${stats.pump}</td><td>${stats.light}</td></tr>` : 
-                (stats.stats || []).map(s => `<tr><td>${s._id}</td><td>${s.pump}</td><td>${s.light}</td></tr>`).join('');
+            const date = filterDate.value;
+            const res = await fetch(`/api/logs${date ? '?date=' + date : ''}`, { 
+                headers: {'Authorization': token} 
+            });
+            const logs = await res.json();
 
-            const today = new Date(Date.now() + 7*3600000).toISOString().split('T')[0];
-            const ts = await fetch(`/api/stats?date=${today}`, { headers: {'Authorization': token} }).then(r => r.json());
-            pCount.innerText = ts.pump + " lần"; lCount.innerText = ts.light + " lần";
-
-            const logsRes = await fetch(`/api/logs${d ? '?date='+d : ''}`, { headers: {'Authorization': token} });
-            const logs = await logsRes.json();
             logBody.innerHTML = logs.map(l => `
                 <tr>
-                    <td>${new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+                    <td>${new Date(l.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
                     <td><b>${l.action}</b></td>
                     <td>${l.source}</td>
-                </tr>`).join('');
-        } catch (err) {}
+                </tr>
+            `).join('');
+
+            const statsMap = {};
+            logs.forEach(l => {
+                if (!statsMap[l.dateStr]) statsMap[l.dateStr] = { pump: 0, light: 0 };
+                if (l.action.includes("Máy bơm: BẬT")) statsMap[l.dateStr].pump++;
+                if (l.action.includes("Đèn LED: BẬT")) statsMap[l.dateStr].light++;
+            });
+
+            statBody.innerHTML = Object.keys(statsMap).map(d => `
+                <tr><td>${d}</td><td>${statsMap[d].pump}</td><td>${statsMap[d].light}</td></tr>
+            `).join('');
+
+            const today = new Date(Date.now() + 7 * 3600000).toISOString().split('T')[0];
+            pCount.innerText = (statsMap[today]?.pump || 0) + " lần";
+            lCount.innerText = (statsMap[today]?.light || 0) + " lần";
+
+        } catch (e) {}
     }
 
-    function clearFilter() { filterDate.value = ''; loadHistory(); }
+    function clearFilter() { filterDate.value = ''; loadData(); }
 
-    async function saveConfig() { 
-        if (role !== 'admin') return;
-        const res = await fetch('/config', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
-            body: JSON.stringify({ 
-                threshold: thIn.value, 
-                lightSchedule: {on: onIn.value, off: offIn.value} 
-            }) 
+    async function regUser() {
+        if (!uNew.value || !pNew.value) return alert("Nhập đủ thông tin!");
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': token},
+            body: JSON.stringify({ username: uNew.value, password: pNew.value, role: 'user' })
         });
-        if(res.ok) alert(" Cập nhật cấu hình thành công!");
-    }
-
-    async function regUser() { 
-        if (role !== 'admin') return;
-        const res = await fetch('/api/register', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json', 'Authorization': token}, 
-            body: JSON.stringify({ username: uNew.value, password: pNew.value, role: 'user' }) 
-        });
-        if(res.ok) {
-            alert(" Đã tạo người dùng mới!");
-            uNew.value = ""; pNew.value = "";
-        }
+        if (res.ok) { alert("Thành công!"); uNew.value = ""; pNew.value = ""; }
+        else alert("Lỗi hoặc API /api/register chưa có trên Server!");
     }
 </script>
 </body>
